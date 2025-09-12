@@ -1,3 +1,14 @@
+import { ethers } from "ethers";
+
+export interface SignerPayload {
+    args: any;
+    nonce: Promise<number> | number | undefined;
+    gasFeeData: ethers.FeeData;
+    recipientAddress: { address: string };
+    value: bigint | string;
+    contractAddress?: string;
+}
+
 export interface TransferPayload {
     recipientAddress: string;
     amount: number;
