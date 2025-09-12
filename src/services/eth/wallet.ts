@@ -2,7 +2,7 @@ import { bip39, BigNumber } from "@okxweb3/crypto-lib";
 import { EthWallet as EthWalletOkx } from "@okxweb3/coin-ethereum";
 import { GenerateWalletPayload, BalancePayload, TransferPayload, SignerPayload, GetContract } from "./types";
 import { ethers } from "ethers";
-import erc20Abi from "./Abi/erc20.json";
+import erc20Abi from "./abi/erc20.json";
 
 interface IResponse {
     [key: string]: any;
@@ -12,9 +12,8 @@ const provider = (rpcUrl?: string) => new ethers.JsonRpcProvider(rpcUrl);
 
 const successResponse = (args: IResponse): IResponse => args;
 
-// --- Default fallback fee ---
-const DEFAULT_PRIORITY = "0.1"; // gwei
-const DEFAULT_MAXFEE = "3"; // gwei
+const DEFAULT_PRIORITY = "0.1";
+const DEFAULT_MAXFEE = "3";
 
 export class EthWallet {
     private wallet: EthWalletOkx;
@@ -34,7 +33,7 @@ export class EthWallet {
 
         if (privateKey) {
             signer = new ethers.Wallet(privateKey, providerInstance);
-            nonce = providerInstance.getTransactionCount(signer.getAddress());
+            nonce = await providerInstance.getTransactionCount(await signer.getAddress());
         }
 
         if (contractAddress) {
@@ -70,51 +69,6 @@ export class EthWallet {
 
         const balance = await providerInstance.getBalance(address);
         return successResponse({ balance: parseFloat(ethers.formatEther(balance)) });
-    }
-
-    private async buildSignParams({ args, nonce, gasFeeData, recipientAddress, value, contractAddress }: SignerPayload) {
-        const txBase = {
-            to: recipientAddress.address,
-            value: new BigNumber(value.toString()),
-            nonce: args.nonce || (await nonce),
-            gasLimit: args.gasLimit ? new BigNumber(args.gasLimit) : BigNumber(21000),
-            chainId: 11155111,
-            ...(contractAddress ? { contractAddress } : {}),
-        };
-
-        // legacy vs eip-1559
-        if (args.gasPrice) {
-            return {
-                privateKey: args.privateKey,
-                data: {
-                    ...txBase,
-                    gasPrice: new BigNumber(ethers.parseUnits(args.gasPrice.toString(), "gwei").toString()),
-                    type: 0,
-                },
-            };
-        }
-
-        return {
-            privateKey: args.privateKey,
-            data: {
-                ...txBase,
-                type: 2,
-                maxPriorityFeePerGas: new BigNumber(
-                    (
-                        args.maxPriorityFeePerGas
-                            ? ethers.parseUnits(args.maxPriorityFeePerGas, "gwei")
-                            : gasFeeData.maxPriorityFeePerGas ?? ethers.parseUnits(DEFAULT_PRIORITY, "gwei")
-                    ).toString()
-                ),
-                maxFeePerGas: new BigNumber(
-                    (
-                        args.maxFeePerGas
-                            ? ethers.parseUnits(args.maxFeePerGas.toString(), "gwei")
-                            : gasFeeData.maxFeePerGas ?? ethers.parseUnits(DEFAULT_MAXFEE, "gwei")
-                    ).toString()
-                ),
-            },
-        };
     }
 
     async transfer({ privateKey, contractAddress, rpcUrl, ...args }: TransferPayload): Promise<IResponse> {
@@ -170,6 +124,51 @@ export class EthWallet {
         const broadcast = await providerInstance.broadcastTransaction(signedTx);
 
         return successResponse({ ...broadcast });
+    }
+
+    private async buildSignParams({ args, nonce, gasFeeData, recipientAddress, value, contractAddress }: SignerPayload) {
+        const txBase = {
+            to: recipientAddress.address,
+            value: BigNumber(value.toString()),
+            nonce: args.nonce || (await nonce),
+            gasLimit: args.gasLimit ? BigNumber(args.gasLimit) : BigNumber(21000),
+            chainId: 11155111,
+            ...(contractAddress ? { contractAddress } : {}),
+        };
+
+        // legacy vs eip-1559
+        if (args.gasPrice) {
+            return {
+                privateKey: args.privateKey,
+                data: {
+                    ...txBase,
+                    gasPrice: BigNumber(ethers.parseUnits(args.gasPrice.toString(), "gwei").toString()),
+                    type: 0,
+                },
+            };
+        }
+
+        return {
+            privateKey: args.privateKey,
+            data: {
+                ...txBase,
+                type: 2,
+                maxPriorityFeePerGas: BigNumber(
+                    (
+                        args.maxPriorityFeePerGas
+                            ? ethers.parseUnits(args.maxPriorityFeePerGas, "gwei")
+                            : gasFeeData.maxPriorityFeePerGas ?? ethers.parseUnits(DEFAULT_PRIORITY, "gwei")
+                    ).toString()
+                ),
+                maxFeePerGas: BigNumber(
+                    (
+                        args.maxFeePerGas
+                            ? ethers.parseUnits(args.maxFeePerGas.toString(), "gwei")
+                            : gasFeeData.maxFeePerGas ?? ethers.parseUnits(DEFAULT_MAXFEE, "gwei")
+                    ).toString()
+                ),
+            },
+        };
     }
 
 }
