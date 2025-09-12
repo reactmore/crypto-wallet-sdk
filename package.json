@@ -1,0 +1,62 @@
+{
+  "name": "crypto-wallet-sdk",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "private": true,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "start": "tsdx watch",
+    "build": "tsdx build",
+    "test": "tsdx test",
+    "test:btc": "tsdx test --testPathPattern=bitcoin",
+    "test:eth": "tsdx test --testPathPattern=ethereum",
+    "test:sol": "tsdx test --testPathPattern=solana",
+    "test:tron": "tsdx test --testPathPattern=tron",
+    "test:waves": "tsdx test --testPathPattern=waves",
+    "test:sui": "tsdx test --testPathPattern=sui",
+    "test:ton": "tsdx test --testPathPattern=ton",
+    "lint": "tsdx lint",
+    "prepare": "tsdx build",
+    "size": "size-limit",
+    "analyze": "size-limit --why"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "tsdx lint"
+    }
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "module": "dist/crypto-wallet-sdk.esm.js",
+  "size-limit": [
+    {
+      "path": "dist/crypto-wallet-sdk.cjs.production.min.js",
+      "limit": "500 KB"
+    },
+    {
+      "path": "dist/crypto-wallet-sdk.esm.js",
+      "limit": "500 KB"
+    }
+  ],
+  "devDependencies": {
+    "@types/jest": "^29.0.0",
+    "eslint": "^8.0.0",
+    "husky": "^7.0.4",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "tsdx": "^0.14.1",
+    "tslib": "^2.3.1",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@okxweb3/coin-base": "^1.1.6",
+    "@okxweb3/coin-ethereum": "^1.1.2",
+    "@okxweb3/crypto-lib": "^1.0.13",
+    "ethers": "^6.15.0"
+  }
+}
