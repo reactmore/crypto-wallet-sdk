@@ -1,12 +1,11 @@
-import { bip39, BigNumber } from "@okxweb3/crypto-lib";
+import { BaseWallet } from "../base/index";
+import { DexConfig } from "../../types";
+import { BigNumber } from "@okxweb3/crypto-lib";
 import { EthWallet as EthWalletOkx } from "@okxweb3/coin-ethereum";
-import { GenerateWalletPayload, BalancePayload, TransferPayload, SignerPayload, GetContract } from "./types";
+import { GenerateWalletPayload, TokenInfo, IResponse } from "./../../types";
+import { GetContract, BalancePayload, TransferPayload, ISmartContractCallPayload, SignerPayload, GetErcTokenInfoPayload } from "./types";
 import { ethers } from "ethers";
 import erc20Abi from "./abi/erc20.json";
-
-interface IResponse {
-    [key: string]: any;
-}
 
 const provider = (rpcUrl?: string) => new ethers.JsonRpcProvider(rpcUrl);
 
@@ -15,10 +14,10 @@ const successResponse = (args: IResponse): IResponse => args;
 const DEFAULT_PRIORITY = "0.1";
 const DEFAULT_MAXFEE = "3";
 
-export class EthWallet {
+export class EvmWallet extends BaseWallet {
     private wallet: EthWalletOkx;
-
-    constructor() {
+    constructor(config: DexConfig) {
+        super(config)
         this.wallet = new EthWalletOkx();
     }
 
@@ -43,11 +42,6 @@ export class EthWallet {
         return { contract, signer, gasFeeData, nonce, providerInstance };
     }
 
-    async generateMnemonic(numWords: number = 12): Promise<string> {
-        const strength = (numWords / 3) * 32;
-        return bip39.generateMnemonic(strength);
-    }
-
     async generateWallet({ mnemonic, derivationPath }: GenerateWalletPayload): Promise<IResponse> {
         const hdPath = derivationPath || "m/44'/60'/0'/0/0";
         const getMnemonic = mnemonic ?? (await this.generateMnemonic(12));
@@ -59,7 +53,7 @@ export class EthWallet {
     }
 
     async getBalance({ rpcUrl, contractAddress, address }: BalancePayload): Promise<IResponse> {
-        const { contract, providerInstance } = await this.getContract({ rpcUrl, contractAddress });
+        const { contract, providerInstance } = await this.getContract({ rpcUrl: rpcUrl ?? this.config.rpcUrl, contractAddress });
 
         if (contract) {
             const decimals = await contract.decimals();
@@ -126,13 +120,78 @@ export class EthWallet {
         return successResponse({ ...broadcast });
     }
 
+    async getTokenInfo({ contractAddress, rpcUrl }: GetErcTokenInfoPayload): Promise<IResponse> {
+        const { contract } = await this.getContract({ contractAddress, rpcUrl });
+
+        if (contract) {
+            const [name, symbol, decimals, totalSupply] = await Promise.all([
+                contract.name(),
+                contract.symbol(),
+                contract.decimals(),
+                contract.totalSupply(),
+            ]);
+
+            const data: TokenInfo = {
+                name,
+                symbol,
+                decimals,
+                totalSupply: ethers.formatUnits(totalSupply, decimals).toString(),
+            };
+            return successResponse({ ...data });
+        }
+
+        throw new Error('Contract not found');
+    };
+
+    async smartContractCall(args: ISmartContractCallPayload): Promise<IResponse> {
+        const { contract, gasFeeData, nonce } = await this.getContract({
+            rpcUrl: args.rpcUrl,
+            contractAddress: args.contractAddress,
+            abi: args.contractAbi,
+            privateKey: args.privateKey,
+        });
+
+        try {
+            let tx;
+            let overrides = {} as any;
+
+            if (args.methodType === 'read') {
+                overrides = {};
+            } else if (args.methodType === 'write') {
+                overrides = {
+                    gasPrice: args.gasPrice
+                        ? ethers.parseUnits(args.gasPrice, 'gwei')
+                        : gasFeeData.gasPrice,
+                    nonce: args.nonce || nonce,
+                    value: args.value ? ethers.parseEther(args.value.toString()) : 0,
+                };
+
+                if (args.gasLimit) {
+                    overrides.gasLimit = args.gasLimit;
+                }
+            }
+
+            if (args.params.length > 0) {
+                tx = await contract?.[args.method](...args.params, overrides);
+            } else {
+                tx = await contract?.[args.method](overrides);
+            }
+
+            return successResponse({
+                data: tx,
+            });
+        } catch (error) {
+            throw error;
+        }
+    };
+
     private async buildSignParams({ args, nonce, gasFeeData, recipientAddress, value, contractAddress }: SignerPayload) {
         const txBase = {
             to: recipientAddress.address,
             value: BigNumber(value.toString()),
             nonce: args.nonce || (await nonce),
             gasLimit: args.gasLimit ? BigNumber(args.gasLimit) : BigNumber(21000),
-            chainId: 11155111,
+            chainId: Number(this.currentChain.id),
             ...(contractAddress ? { contractAddress } : {}),
         };
 

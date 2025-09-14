@@ -54,9 +54,16 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "@metaplex-foundation/js": "^0.20.1",
     "@okxweb3/coin-base": "^1.1.6",
+    "@okxweb3/coin-bitcoin": "^1.2.1",
     "@okxweb3/coin-ethereum": "^1.1.2",
+    "@okxweb3/coin-solana": "^1.1.0",
     "@okxweb3/crypto-lib": "^1.0.13",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/spl-token-registry": "^0.2.4574",
+    "@solana/web3.js": "^1.98.4",
+    "buffer-layout": "^1.2.2",
     "ethers": "^6.15.0"
   }
 }

@@ -6,9 +6,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 describe('Ethereum tests', () => {
   const client = new CryptoClientSdk({
-    network: "EVM",
-    chainId: "11155111",
-    rpcUrl: "https://ethereum-sepolia-rpc.publicnode.com",
+    network: "BTC"
   });
 
   const wallet = client.getWallet();
@@ -19,14 +17,14 @@ describe('Ethereum tests', () => {
   //   expect(typeof mnemonic).toBe('string');
   // });
 
-  // it('generateWallet', async () => {
-  //   const data = await wallet.generateWallet({
-  //     mnemonic: "angle act turtle reveal inner question soul weekend act city illness laptop",
-  //     derivationPath: "m/44'/60'/0'/0/0",
-  //   });
+  it('generateWallet', async () => {
+    const data = await wallet.generateWallet({
+      mnemonic: "angle act turtle reveal inner question soul weekend act city illness laptop",
+      derivationPath: "m/44'/0'/0'/0/0",
+    });
 
-  //   expect(typeof data).toBe('object');
-  // });
+    expect(typeof data).toBe('object');
+  });
 
   // it('getBalance', async () => {
   //   const data = await wallet.getBalance({
@@ -49,7 +47,7 @@ describe('Ethereum tests', () => {
   // });
 
   // it('transfer', async () => {
-  //   const data = await wallet.transfer({
+  //   const data = await ethWrapper.transfer({
   //     recipientAddress: '0x45beeca6ebea6f99de93e39572ec62449315aa80',
   //     privateKey: '0x3e241f7e6edcd5bf3a86de1f6588e70a3b89dcac8b3396f8f74572e8d5d370b2',
   //     amount: 0.005,
@@ -62,7 +60,7 @@ describe('Ethereum tests', () => {
   // });
 
   // it('transfer Token', async () => {
-  //   const data = await wallet.transfer({
+  //   const data = await ethWrapper.transfer({
   //     recipientAddress: '0x45beeca6ebea6f99de93e39572ec62449315aa80',
   //     privateKey: '0x3e241f7e6edcd5bf3a86de1f6588e70a3b89dcac8b3396f8f74572e8d5d370b2',
   //     amount: 1,
@@ -71,19 +69,6 @@ describe('Ethereum tests', () => {
   //   });
 
   //   expect(typeof data).toBe('object');
-  // });
-
-  // it('get ERC20 token info', async () => {
-  //   const data = await wallet.getTokenInfo({
-  //     contractAddress: '0x8BEbFCBe5468F146533C182dF3DFbF5ff9BE00E2',
-  //     rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com',
-  //   });
-
-  //   expect(typeof data).toBe('object');
-  //   expect(typeof (data && data.name)).toBe('string');
-  //   expect(typeof (data && data.symbol)).toBe('string');
-  //   expect(typeof (data && data.decimals)).toBe('bigint');
-  //   expect(typeof (data && data.totalSupply)).toBe('string');
   // });
 
   // it('smart contract call (get token Balance)', async () => {
