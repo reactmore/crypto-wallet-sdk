@@ -86,13 +86,68 @@ describe('Ethereum tests', () => {
   //   expect(typeof (data && data.totalSupply)).toBe('string');
   // });
 
-  // it('smart contract call (get token Balance)', async () => {
-  //   const data = await ethWrapper.smartContractCall({
+  it('smart contract call (get token Balance)', async () => {
+    const data = await wallet.smartContractCall({
+      contractAddress: '0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9',
+      method: 'balanceOf',
+      methodType: 'read',
+      params: ['0x45BeEcA6ebEA6f99De93e39572ec62449315aa80'],
+    });
+
+    console.log(data);
+
+    expect(typeof data).toBe('object');
+  });
+
+  it('smart contract call (ERC20 token transfer)', async () => {
+    const data = await wallet.smartContractCall({
+      rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com',
+      contractAddress: '0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9',
+      method: 'transfer',
+      methodType: 'write',
+      params: [
+        '0x45BeEcA6ebEA6f99De93e39572ec62449315aa80',
+        '1000000',
+      ],
+      contractAbi: [
+        {
+          constant: false,
+          inputs: [
+            { name: '_to', type: 'address' },
+            { name: '_value', type: 'uint256' },
+          ],
+          name: 'transfer',
+          outputs: [{ name: '', type: 'bool' }],
+          payable: false,
+          stateMutability: 'nonpayable',
+          type: 'function',
+        },
+      ],
+      privateKey:
+        '0x3e241f7e6edcd5bf3a86de1f6588e70a3b89dcac8b3396f8f74572e8d5d370b2',
+    });
+
+    console.log(data);
+
+    expect(typeof data).toBe('object');
+  });
+
+  // it('smart contract call (get factory Uniswap)', async () => {
+  //   const data = await wallet.smartContractCall({
   //     rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com',
-  //     contractAddress: '0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9',
-  //     method: 'balanceOf',
+  //     contractAddress: '0xeE567Fe1712Faf6149d80dA1E6934E354124CfE3',
+  //     method: 'factory',
   //     methodType: 'read',
-  //     params: ['0x45BeEcA6ebEA6f99De93e39572ec62449315aa80'],
+  //     params: [],
+  //     contractAbi: [
+  //       {
+  //         inputs: [],
+  //         name: 'factory',
+  //         outputs: [{ internalType: 'address', name: '', type: 'address' }],
+  //         stateMutability: 'view',
+  //         type: 'function',
+  //       },
+  //     ],
   //   });
 
   //   console.log(data);

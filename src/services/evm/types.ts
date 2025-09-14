@@ -28,7 +28,7 @@ export interface TransferPayload {
 }
 
 export interface ISmartContractCallPayload {
-    rpcUrl: string;
+    rpcUrl?: string;
     apiKey?: string;
     contractAddress: string;
     method: string;

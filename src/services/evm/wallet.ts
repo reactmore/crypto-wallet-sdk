@@ -24,7 +24,7 @@ export class EvmWallet extends BaseWallet {
     async getContract({ contractAddress, rpcUrl, privateKey, abi }: GetContract) {
         if (!rpcUrl) throw new Error("RPC URL is required");
 
-        const providerInstance = provider(rpcUrl);
+        const providerInstance = provider(rpcUrl ?? this.config.rpcUrl);
         const gasFeeData = await providerInstance.getFeeData();
 
         let nonce, contract, signer;
@@ -67,7 +67,7 @@ export class EvmWallet extends BaseWallet {
 
     async transfer({ privateKey, contractAddress, rpcUrl, ...args }: TransferPayload): Promise<IResponse> {
         const { contract, providerInstance, gasFeeData, nonce } = await this.getContract({
-            rpcUrl,
+            rpcUrl: rpcUrl ?? this.config.rpcUrl,
             privateKey,
             contractAddress,
         });
@@ -145,7 +145,7 @@ export class EvmWallet extends BaseWallet {
 
     async smartContractCall(args: ISmartContractCallPayload): Promise<IResponse> {
         const { contract, gasFeeData, nonce } = await this.getContract({
-            rpcUrl: args.rpcUrl,
+            rpcUrl: args.rpcUrl ?? this.config.rpcUrl,
             contractAddress: args.contractAddress,
             abi: args.contractAbi,
             privateKey: args.privateKey,
