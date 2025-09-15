@@ -7,8 +7,8 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 describe('Solana tests', () => {
   const client = new CryptoClientSdk({
     network: "SOL",
-    rpcUrl: 'https://api.mainnet-beta.solana.com/',
-    // rpcUrl: 'https://api.devnet.solana.com',
+    // rpcUrl: 'https://api.mainnet-beta.solana.com/',
+    rpcUrl: 'https://api.devnet.solana.com',
     // rpcUrl: 'https://api.testnet.solana.com',
   });
 
@@ -33,8 +33,6 @@ describe('Solana tests', () => {
       address: "ERLHJ9rPakpdvC4raegrzWZ8n1Acv4tvyiAPqArebdZm",
     });
 
-    console.log(data);
-
     expect(typeof data).toBe('object');
     expect(data).toHaveProperty('balance');
     expect(typeof data.balance).toBe('number');
@@ -45,8 +43,6 @@ describe('Solana tests', () => {
       address: 'ERLHJ9rPakpdvC4raegrzWZ8n1Acv4tvyiAPqArebdZm',
       contractAddress: '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
     });
-
-    console.log(data);
 
     expect(typeof data).toBe('object');
     expect(data).toHaveProperty('balance');

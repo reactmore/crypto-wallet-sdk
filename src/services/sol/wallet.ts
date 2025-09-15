@@ -5,14 +5,13 @@ import { SolWallet as SolWalletOkx } from "@okxweb3/coin-solana";
 import * as solanaWeb3 from '@solana/web3.js';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
 import { ENV, TokenListProvider } from "@solana/spl-token-registry";
+import { successResponse, parseAmount, formatAmount } from "./../../utils";
 import { IResponse, GenerateWalletPayload, TokenInfo } from "./../../types";
 import { BalanceSolanaPayload, TransferSolanaPayload, GetSplTokenInfoPayload } from "./types";
 // @ts-ignore
 import * as BufferLayout from 'buffer-layout';
 
 const provider = (rpcUrl?: string) => new solanaWeb3.Connection(rpcUrl as string);
-
-const successResponse = (args: IResponse): IResponse => args;
 
 export const ACCOUNT_LAYOUT = BufferLayout.struct([
     BufferLayout.blob(32, 'mint'),
@@ -55,18 +54,30 @@ export class SolWallet extends BaseWallet {
             const publicKey = new solanaWeb3.PublicKey(recipientAddress.address);
             if (contractAddress) {
                 const mintPubkey = new solanaWeb3.PublicKey(contractAddress);
+                // get token by account 
                 const tokenAccountAddress = await getAssociatedTokenAddress(mintPubkey, publicKey);
-                const balance = await connection.getTokenAccountBalance(tokenAccountAddress);
+                const accountInfo = await connection.getAccountInfo(tokenAccountAddress);
+
+                // check if account not associated with this return 0 balance 
+                if (!accountInfo) {
+                    return successResponse({
+                        balance: "0",
+                    });
+                }
+
+                const rawBalance = await connection.getTokenAccountBalance(tokenAccountAddress);
                 return successResponse({
-                    balance: balance.value.uiAmount,
-                    _rawBalance: balance.value.amount,
-                    _decimal: balance.value.decimals,
+                    balance: formatAmount(rawBalance.value.amount, rawBalance.value.decimals),
+                    _rawBalance: rawBalance.value.amount,
+                    _decimal: rawBalance.value.decimals,
                 });
             }
 
             const balance = await connection.getBalance(publicKey);
             return successResponse({
-                balance: balance / solanaWeb3.LAMPORTS_PER_SOL,
+                balance: formatAmount(balance.toString(), 9),
+                _rawBalance: parseAmount(balance, 9),
+                _decimal: 9,
             });
         } catch (error) {
             throw error;
