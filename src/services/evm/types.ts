@@ -27,6 +27,11 @@ export interface TransferPayload {
     maxFeePerGas?: string;
 }
 
+export interface GetTransactionPayload {
+  rpcUrl?: string;
+  hash: string;
+}
+
 export interface ISmartContractCallPayload {
     rpcUrl?: string;
     apiKey?: string;

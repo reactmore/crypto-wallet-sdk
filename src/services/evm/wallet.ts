@@ -3,13 +3,12 @@ import { DexConfig } from "../../types";
 import { BigNumber } from "@okxweb3/crypto-lib";
 import { EthWallet as EthWalletOkx } from "@okxweb3/coin-ethereum";
 import { GenerateWalletPayload, TokenInfo, IResponse } from "./../../types";
-import { GetContract, BalancePayload, TransferPayload, ISmartContractCallPayload, SignerPayload, GetErcTokenInfoPayload } from "./types";
+import { successResponse, formatAmount } from "./../../utils";
+import { GetContract, BalancePayload, TransferPayload, GetTransactionPayload, ISmartContractCallPayload, SignerPayload, GetErcTokenInfoPayload } from "./types";
 import { ethers } from "ethers";
 import erc20Abi from "./abi/erc20.json";
 
 const provider = (rpcUrl?: string) => new ethers.JsonRpcProvider(rpcUrl);
-
-const successResponse = (args: IResponse): IResponse => args;
 
 const DEFAULT_PRIORITY = "0.1";
 const DEFAULT_MAXFEE = "3";
@@ -58,11 +57,20 @@ export class EvmWallet extends BaseWallet {
         if (contract) {
             const decimals = await contract.decimals();
             const balance = await contract.balanceOf(address);
-            return successResponse({ balance: parseFloat(ethers.formatUnits(balance, decimals)) });
+            return successResponse({
+                balance: formatAmount(balance.toString(), decimals),
+                _rawBalance: balance.toString(),
+                _decimal: decimals,
+            });
         }
 
         const balance = await providerInstance.getBalance(address);
-        return successResponse({ balance: parseFloat(ethers.formatEther(balance)) });
+
+        return successResponse({
+            balance: formatAmount(balance.toString(), 18),
+            _rawBalance: balance.toString(),
+            _decimal: 18,
+        });
     }
 
     async transfer({ privateKey, contractAddress, rpcUrl, ...args }: TransferPayload): Promise<IResponse> {
@@ -119,6 +127,19 @@ export class EvmWallet extends BaseWallet {
 
         return successResponse({ ...broadcast });
     }
+
+    async getTransaction({ hash, rpcUrl }: GetTransactionPayload): Promise<IResponse> {
+        const { providerInstance } = await this.getContract({ rpcUrl: rpcUrl ?? this.config.rpcUrl, });
+
+        try {
+            const tx = await providerInstance.getTransactionReceipt(hash);
+            return successResponse({
+                ...tx,
+            });
+        } catch (error) {
+            throw error;
+        }
+    };
 
     async getTokenInfo({ contractAddress, rpcUrl }: GetErcTokenInfoPayload): Promise<IResponse> {
         const { contract } = await this.getContract({ contractAddress, rpcUrl });
