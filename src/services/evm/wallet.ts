@@ -13,8 +13,13 @@ const provider = (rpcUrl?: string) => new ethers.JsonRpcProvider(rpcUrl);
 const DEFAULT_PRIORITY = "0.1";
 const DEFAULT_MAXFEE = "3";
 
+
 export class EvmWallet extends BaseWallet {
+
     private wallet: EthWalletOkx;
+
+    private tokenDecimalsCache = new Map<string, number>();
+
     constructor(config: DexConfig) {
         super(config)
         this.wallet = new EthWalletOkx();
@@ -31,7 +36,10 @@ export class EvmWallet extends BaseWallet {
 
         if (privateKey) {
             signer = new ethers.Wallet(privateKey, providerInstance);
-            nonce = await providerInstance.getTransactionCount(await signer.getAddress());
+            nonce = await providerInstance.getTransactionCount(
+                await signer.getAddress(),
+                "pending"
+            );
         }
 
         if (contractAddress) {
@@ -83,18 +91,25 @@ export class EvmWallet extends BaseWallet {
         const recipientAddress = await this.wallet.validAddress({ address: args.recipientAddress });
         if (!recipientAddress.isValid) throw new Error("address not valid");
 
-        // validasi fee manual
+        // ===============================
+        // VALIDASI FEE
+        // ===============================
         if (args.maxPriorityFeePerGas && args.maxFeePerGas) {
-            const prio = ethers.parseUnits(args.maxPriorityFeePerGas, "gwei");
-            const max = ethers.parseUnits(args.maxFeePerGas, "gwei");
+            const prio = BigInt(args.maxPriorityFeePerGas);
+            const max = BigInt(args.maxFeePerGas);
             if (max < prio) {
-                throw new Error(
-                    `Invalid fee config: maxFeePerGas (${args.maxFeePerGas} gwei) must be >= maxPriorityFeePerGas (${args.maxPriorityFeePerGas} gwei)`
-                );
+                throw new Error("maxFeePerGas must be >= maxPriorityFeePerGas");
             }
         }
 
-        let value: bigint | string;
+        if (args.gasPrice && (args.maxFeePerGas || args.maxPriorityFeePerGas)) {
+            throw new Error("Cannot use gasPrice with EIP-1559 fee fields");
+        }
+
+        // ===============================
+        // HITUNG VALUE & GAS LIMIT
+        // ===============================
+        let value: bigint;
         let gasLimit: bigint;
 
         if (contractAddress) {
@@ -103,16 +118,39 @@ export class EvmWallet extends BaseWallet {
             const decimals = await contract.decimals();
             value = ethers.parseUnits(args.amount.toString(), decimals);
 
-            gasLimit = args.gasLimit ? BigInt(args.gasLimit)
+            gasLimit = args.gasLimit
+                ? BigInt(args.gasLimit)
                 : await contract.transfer.estimateGas(
                     args.recipientAddress,
                     value
                 );
         } else {
             value = ethers.parseEther(args.amount.toString());
-            gasLimit = args.gasLimit ? BigInt(args.gasLimit) : BigInt(21000);
+            gasLimit = args.gasLimit ? BigInt(args.gasLimit) : 21000n;
         }
 
+        // ===============================
+        // AUTO DEFAULT FEE (PAKAI REGULAR)
+        // ===============================
+        const noFeeProvided =
+            !args.gasPrice &&
+            !args.maxFeePerGas &&
+            !args.maxPriorityFeePerGas;
+
+        if (noFeeProvided) {
+            const resolvedFee = await this.resolveDefaultFee(
+                rpcUrl ?? this.config.rpcUrl
+            );
+
+            args = {
+                ...args,
+                ...resolvedFee,
+            };
+        }
+
+        // ===============================
+        // SIGN & BROADCAST
+        // ===============================
         const signParams = await this.buildSignParams({
             args: { ...args, privateKey, gasLimit },
             nonce,
@@ -206,6 +244,148 @@ export class EvmWallet extends BaseWallet {
         }
     };
 
+    async estimateGas({ rpcUrl, recipientAddress, amount }: any): Promise<IResponse> {
+        const { providerInstance } = await this.getContract({ rpcUrl: rpcUrl ?? this.config.rpcUrl });
+
+        try {
+
+            const network = await providerInstance.getNetwork();
+            const chainId = Number(network.chainId);
+
+            const tx = {
+                to: recipientAddress,
+                value: ethers.parseEther(amount.toString()),
+            };
+
+            const [feeData, gasLimit] = await Promise.all([
+                providerInstance.getFeeData(),
+                providerInstance.estimateGas(tx),
+            ]);
+
+            const { gasPrice, maxFeePerGas, maxPriorityFeePerGas } = feeData;
+
+            const applyMultiplier = (base: bigint, mul: number) =>
+                (base * BigInt(Math.floor(mul * 10))) / 10n;
+
+            // feeData IS AUTO CHECK EIP OR LEGACY
+            const isEip1559 = maxFeePerGas !== null && maxPriorityFeePerGas !== null;
+
+            if (!isEip1559) {
+                const baseGasPrice = BigInt(gasPrice ?? 0n);
+
+                const regularGasPrice = baseGasPrice; // wallet "slow"
+                const expressGasPrice = (baseGasPrice * 110n) / 100n; // +10%
+                const instantGasPrice = (baseGasPrice * 125n) / 100n; // +25%
+
+                const regularFee = gasLimit * regularGasPrice;
+                const expressFee = gasLimit * expressGasPrice;
+                const instantFee = gasLimit * instantGasPrice;
+
+                return successResponse({
+                    chainId,
+                    gasLimit: gasLimit.toString(),
+                    gasPrice: baseGasPrice.toString(),
+                    gasPriceGwei: ethers.formatUnits(baseGasPrice, "gwei"),
+                    model: "LEGACY",
+                    fees: {
+                        regular: ethers.formatEther(regularFee),
+                        express: ethers.formatEther(expressFee),
+                        instant: ethers.formatEther(instantFee),
+                    }
+                });
+            }
+
+            let baseFee: bigint;
+            let priorityFee: bigint;
+
+            const block = await providerInstance.getBlock("latest");
+
+            baseFee = BigInt(block!.baseFeePerGas ?? 0n);
+            priorityFee = BigInt(
+                feeData.maxPriorityFeePerGas ?? ethers.parseUnits(DEFAULT_PRIORITY, "gwei")
+            );
+
+            const regularPriority = priorityFee;
+            const regularMaxFee = baseFee + regularPriority;
+
+            const expressPriority = applyMultiplier(priorityFee, 1.2);
+            const expressMaxFee = applyMultiplier(baseFee, 1.2) + expressPriority;
+
+            const instantPriority = applyMultiplier(priorityFee, 1.5);
+            const instantMaxFee = applyMultiplier(baseFee, 1.5) + instantPriority;
+
+            const MAX_GAS_GWEI = 100n * 1_000_000_000n;
+            const cap = (v: bigint) => (v > MAX_GAS_GWEI ? MAX_GAS_GWEI : v);
+
+            const regularFee = gasLimit * cap(regularMaxFee);
+            const expressFee = gasLimit * cap(expressMaxFee);
+            const instantFee = gasLimit * cap(instantMaxFee);
+
+            return successResponse({
+                chainId,
+                gasLimit: gasLimit.toString(),
+                baseFeeGwei: ethers.formatUnits(baseFee, "gwei"),
+                priorityFeeGwei: ethers.formatUnits(priorityFee, "gwei"),
+                model: "EIP1559",
+                fees: {
+                    regular: {
+                        perCoin: ethers.formatEther(regularFee),
+                        maxPriorityFeePerGas: regularPriority.toString(),
+                        maxFeePerGas: regularMaxFee.toString(),
+                    },
+                    express: {
+                        perCoin: ethers.formatEther(expressFee),
+                        maxPriorityFeePerGas: expressPriority.toString(),
+                        maxFeePerGas: expressMaxFee.toString(),
+                    },
+                    instant: {
+                        perCoin: ethers.formatEther(instantFee),
+                        maxPriorityFeePerGas: instantPriority.toString(),
+                        maxFeePerGas: instantMaxFee.toString(),
+                    },
+                }
+            });
+
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    private async resolveDefaultFee(rpcUrl?: string) {
+        const providerInstance = provider(rpcUrl ?? this.config.rpcUrl);
+
+        const feeData = await providerInstance.getFeeData();
+        const block = await providerInstance.getBlock("latest");
+
+        const isEip1559 =
+            feeData.maxFeePerGas !== null &&
+            feeData.maxPriorityFeePerGas !== null &&
+            block !== null &&
+            block.baseFeePerGas !== null;
+
+        if (!isEip1559) {
+            // LEGACY fallback
+            if (!feeData.gasPrice) {
+                throw new Error("Unable to resolve gasPrice from provider");
+            }
+
+            return {
+                gasPrice: feeData.gasPrice.toString(), // wei
+            };
+        }
+
+        const baseFee = BigInt(block.baseFeePerGas);
+        const priority = BigInt(feeData.maxPriorityFeePerGas);
+
+        // REGULAR preset (base + priority)
+        const maxFee = baseFee + priority;
+
+        return {
+            maxPriorityFeePerGas: priority.toString(), // wei
+            maxFeePerGas: maxFee.toString(),           // wei
+        };
+    }
+
     private async buildSignParams({ args, nonce, gasFeeData, recipientAddress, value, contractAddress }: SignerPayload) {
         const txBase = {
             to: recipientAddress.address,
@@ -234,18 +414,14 @@ export class EvmWallet extends BaseWallet {
                 ...txBase,
                 type: 2,
                 maxPriorityFeePerGas: BigNumber(
-                    (
-                        args.maxPriorityFeePerGas
-                            ? ethers.parseUnits(args.maxPriorityFeePerGas, "gwei")
-                            : gasFeeData.maxPriorityFeePerGas ?? ethers.parseUnits(DEFAULT_PRIORITY, "gwei")
-                    ).toString()
+                    args.maxPriorityFeePerGas
+                        ? args.maxPriorityFeePerGas
+                        : gasFeeData.maxPriorityFeePerGas!.toString()
                 ),
                 maxFeePerGas: BigNumber(
-                    (
-                        args.maxFeePerGas
-                            ? ethers.parseUnits(args.maxFeePerGas.toString(), "gwei")
-                            : gasFeeData.maxFeePerGas ?? ethers.parseUnits(DEFAULT_MAXFEE, "gwei")
-                    ).toString()
+                    args.maxFeePerGas
+                        ? args.maxFeePerGas
+                        : gasFeeData.maxFeePerGas!.toString()
                 ),
             },
         };

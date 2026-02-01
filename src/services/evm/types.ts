@@ -18,18 +18,18 @@ export interface TransferPayload {
     amount: number;
     rpcUrl?: string;
     privateKey: string;
-    gasPrice?: string;
+    gasPrice?: string;              // gwei (legacy)
     contractAddress?: string;
     nonce?: number;
     data?: string;
-    gasLimit?: number;
-    maxPriorityFeePerGas?: string;
-    maxFeePerGas?: string;
+    gasLimit?: string;              // unit gas
+    maxPriorityFeePerGas?: string;  // wei
+    maxFeePerGas?: string;          // wei
 }
 
 export interface GetTransactionPayload {
-  rpcUrl?: string;
-  hash: string;
+    rpcUrl?: string;
+    hash: string;
 }
 
 export interface ISmartContractCallPayload {
@@ -59,8 +59,8 @@ export interface SignerPayload {
 }
 
 export interface GetErcTokenInfoPayload {
-  rpcUrl: string;
-  contractAddress: string;
-  cluster?: 'mainnet-beta' | 'testnet' | 'devnet';
-  apiKey?: string;
+    rpcUrl: string;
+    contractAddress: string;
+    cluster?: 'mainnet-beta' | 'testnet' | 'devnet';
+    apiKey?: string;
 }
