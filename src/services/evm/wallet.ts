@@ -13,12 +13,9 @@ const provider = (rpcUrl?: string) => new ethers.JsonRpcProvider(rpcUrl);
 const DEFAULT_PRIORITY = "0.1";
 const DEFAULT_MAXFEE = "3";
 
-
 export class EvmWallet extends BaseWallet {
 
     private wallet: EthWalletOkx;
-
-    private tokenDecimalsCache = new Map<string, number>();
 
     constructor(config: DexConfig) {
         super(config)
@@ -32,7 +29,7 @@ export class EvmWallet extends BaseWallet {
         const gasFeeData = await providerInstance.getFeeData();
 
         let nonce, contract, signer;
-        const contractAbi = abi || erc20Abi;
+
 
         if (privateKey) {
             signer = new ethers.Wallet(privateKey, providerInstance);
@@ -43,11 +40,16 @@ export class EvmWallet extends BaseWallet {
         }
 
         if (contractAddress) {
-            contract = new ethers.Contract(contractAddress, contractAbi, signer || providerInstance);
+            contract = new ethers.Contract(
+                contractAddress,
+                abi || erc20Abi,
+                signer || providerInstance
+            );
         }
 
         return { contract, signer, gasFeeData, nonce, providerInstance };
     }
+
 
     async generateWallet({ mnemonic, derivationPath }: GenerateWalletPayload): Promise<IResponse> {
         const hdPath = derivationPath || "m/44'/60'/0'/0/0";
@@ -138,14 +140,33 @@ export class EvmWallet extends BaseWallet {
             !args.maxPriorityFeePerGas;
 
         if (noFeeProvided) {
-            const resolvedFee = await this.resolveDefaultFee(
-                rpcUrl ?? this.config.rpcUrl
-            );
+            const estimate = await this.estimateGas({
+                rpcUrl: rpcUrl ?? this.config.rpcUrl,
+                recipientAddress: args.recipientAddress,
+                amount: args.amount,
+            });
 
-            args = {
-                ...args,
-                ...resolvedFee,
-            };
+            gasLimit = BigInt(estimate.gasLimit);
+
+            // ===== LEGACY =====
+            if (estimate.model === "LEGACY") {
+                if (!estimate.gasPrice) {
+                    throw new Error("LEGACY estimate missing gasPrice");
+                }
+
+                args.gasPrice = estimate.gasPrice; // wei
+                return this.transfer({ privateKey, contractAddress, rpcUrl, ...args });
+            }
+
+            // ===== EIP-1559 =====
+            const fee = estimate.fees.regular;
+
+            if (!fee?.maxFeePerGas || !fee?.maxPriorityFeePerGas) {
+                throw new Error("EIP1559 estimate missing fee fields");
+            }
+
+            args.maxFeePerGas = fee.maxFeePerGas;
+            args.maxPriorityFeePerGas = fee.maxPriorityFeePerGas;
         }
 
         // ===============================
@@ -180,7 +201,7 @@ export class EvmWallet extends BaseWallet {
     };
 
     async getTokenInfo({ contractAddress, rpcUrl }: GetErcTokenInfoPayload): Promise<IResponse> {
-        const { contract } = await this.getContract({ contractAddress, rpcUrl });
+        const { contract } = await this.getContract({ contractAddress, rpcUrl: rpcUrl ?? this.config.rpcUrl, });
 
         if (contract) {
             const [name, symbol, decimals, totalSupply] = await Promise.all([
@@ -220,7 +241,7 @@ export class EvmWallet extends BaseWallet {
                 overrides = {
                     gasPrice: args.gasPrice
                         ? ethers.parseUnits(args.gasPrice, 'gwei')
-                        : gasFeeData.gasPrice,
+                        : gasFeeData?.gasPrice,
                     nonce: args.nonce || nonce,
                     value: args.value ? ethers.parseEther(args.value.toString()) : 0,
                 };
@@ -357,14 +378,13 @@ export class EvmWallet extends BaseWallet {
         const feeData = await providerInstance.getFeeData();
         const block = await providerInstance.getBlock("latest");
 
-        const isEip1559 =
-            feeData.maxFeePerGas !== null &&
-            feeData.maxPriorityFeePerGas !== null &&
-            block !== null &&
-            block.baseFeePerGas !== null;
-
-        if (!isEip1559) {
-            // LEGACY fallback
+        // LEGACY
+        if (
+            !feeData.maxFeePerGas ||
+            !feeData.maxPriorityFeePerGas ||
+            !block ||
+            block.baseFeePerGas === null
+        ) {
             if (!feeData.gasPrice) {
                 throw new Error("Unable to resolve gasPrice from provider");
             }
@@ -374,15 +394,13 @@ export class EvmWallet extends BaseWallet {
             };
         }
 
+        // EIP-1559 REGULAR
         const baseFee = BigInt(block.baseFeePerGas);
         const priority = BigInt(feeData.maxPriorityFeePerGas);
 
-        // REGULAR preset (base + priority)
-        const maxFee = baseFee + priority;
-
         return {
             maxPriorityFeePerGas: priority.toString(), // wei
-            maxFeePerGas: maxFee.toString(),           // wei
+            maxFeePerGas: (baseFee + priority).toString(), // wei
         };
     }
 

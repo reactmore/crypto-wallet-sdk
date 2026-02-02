@@ -1,3 +1,8 @@
+jest.mock("bigint-buffer", () => ({
+  toBigIntLE: () => BigInt(0),
+  toBigIntBE: () => BigInt(0),
+}));
+
 const crypto = require('crypto');
 
 const { TextEncoder, TextDecoder } = require('util');
@@ -15,6 +20,8 @@ Object.defineProperty(global, 'crypto', {
     getRandomValues: arr => crypto.randomFillSync(arr),
   },
 });
+
+
 
 try {
   const noble = require('@noble/hashes/utils');

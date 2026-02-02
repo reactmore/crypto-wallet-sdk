@@ -35,7 +35,6 @@ let wallet: any;
  * Tests
  * ------------------------------------------------------------------ */
 describe('EVM Wallet (Ethereum Sepolia)', () => {
-
   beforeAll(() => {
     client = new CryptoClientSdk({
       network: 'EVM',
@@ -55,7 +54,10 @@ describe('EVM Wallet (Ethereum Sepolia)', () => {
       derivationPath: "m/44'/60'/0'/0/0",
     });
 
-    log('generateWallet', res);
+    expect(typeof res).toBe('object');
+    expect(res).toHaveProperty("address");
+    expect(res).toHaveProperty("privateKey");
+    expect(res).toHaveProperty("publicKey");
   });
 
   /* --------------------------------------------------------------
@@ -66,7 +68,22 @@ describe('EVM Wallet (Ethereum Sepolia)', () => {
       address: TEST_WALLET.address,
     });
 
-    log('getBalance', res);
+    expect(typeof res).toBe('object');
+    expect(res).toHaveProperty("balance");
+    expect(res).toHaveProperty("_rawBalance");
+    expect(res).toHaveProperty("_decimal");
+  });
+
+  it('should get ERC20 token balance', async () => {
+    const res = await wallet.getBalance({
+      address: TEST_WALLET.address,
+      contractAddress: '0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9',
+    });
+
+    expect(typeof res).toBe('object');
+    expect(res).toHaveProperty("balance");
+    expect(res).toHaveProperty("_rawBalance");
+    expect(res).toHaveProperty("_decimal");
   });
 
   /* --------------------------------------------------------------
@@ -78,7 +95,22 @@ describe('EVM Wallet (Ethereum Sepolia)', () => {
       amount: 0.00718639,
     });
 
-    log('estimateGas', res);
+    expect(typeof res).toBe('object');
+  });
+
+  /* --------------------------------------------------------------
+   * TOKEN INFO
+   * -------------------------------------------------------------- */
+  it('should get ERC20 token info', async () => {
+    const data = await wallet.getTokenInfo({
+      contractAddress: '0x8BEbFCBe5468F146533C182dF3DFbF5ff9BE00E2',
+    });
+
+    expect(typeof data).toBe('object');
+    expect(typeof (data && data.name)).toBe('string');
+    expect(typeof (data && data.symbol)).toBe('string');
+    expect(typeof (data && data.decimals)).toBe('bigint');
+    expect(typeof (data && data.totalSupply)).toBe('string');
   });
 
   /* --------------------------------------------------------------
@@ -93,8 +125,7 @@ describe('EVM Wallet (Ethereum Sepolia)', () => {
         amount: 0.005,
       });
 
-      log('transfer | default fee', res);
-      await sleep(15_000);
+      expect(typeof res).toBe('object');
     });
 
     it('should transfer with custom EIP-1559 fee', async () => {
@@ -106,8 +137,7 @@ describe('EVM Wallet (Ethereum Sepolia)', () => {
         maxPriorityFeePerGas: '1583107', // wei
       });
 
-      log('transfer | custom EIP-1559 fee', res);
-      await sleep(15_000);
+      expect(typeof res).toBe('object');
     });
 
     it('should transfer with legacy gasPrice', async () => {
@@ -119,8 +149,7 @@ describe('EVM Wallet (Ethereum Sepolia)', () => {
         gasLimit: '21000',
       });
 
-      log('transfer | legacy gasPrice', res);
-      await sleep(15_000);
+      expect(typeof res).toBe('object');
     });
 
   });
