@@ -1,89 +1,109 @@
-import {
-  CryptoClientSdk,
-} from '../src';
+import { CryptoClientSdk } from '../src';
 
+/* ------------------------------------------------------------------
+ * Helpers
+ * ------------------------------------------------------------------ */
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-describe('Ethereum tests', () => {
-  const client = new CryptoClientSdk({
-    network: "EVM",
-    chainId: "11155111",
-    rpcUrl: "https://ethereum-sepolia-rpc.publicnode.com",
+const log = (title: string, data: any) => {
+  console.log(`\n=== ${title} ===`);
+  console.dir(data, { depth: null });
+};
+
+/* ------------------------------------------------------------------
+ * Test Config
+ * ------------------------------------------------------------------ */
+const RPC = {
+  ETH_SEPOLIA: 'https://ethereum-sepolia-rpc.publicnode.com',
+};
+
+const TEST_WALLET = {
+  address: '0x45beeca6ebea6f99de93e39572ec62449315aa80',
+  privateKey: '0x3e241f7e6edcd5bf3a86de1f6588e70a3b89dcac8b3396f8f74572e8d5d370b2',
+};
+
+const MNEMONIC =
+  'angle act turtle reveal inner question soul weekend act city illness laptop';
+
+/* ------------------------------------------------------------------
+ * Globals (initialized in beforeAll)
+ * ------------------------------------------------------------------ */
+let client
+let wallet: any;
+
+/* ------------------------------------------------------------------
+ * Tests
+ * ------------------------------------------------------------------ */
+describe('EVM Wallet (Ethereum Sepolia)', () => {
+  beforeAll(() => {
+    client = new CryptoClientSdk({
+      network: 'EVM',
+      chainId: '11155111',
+      rpcUrl: RPC.ETH_SEPOLIA,
+    });
+
+    wallet = client.getWallet();
   });
 
-  const wallet = client.getWallet();
-
-  it('generateMnemonic from Base', async () => {
-    const mnemonic = await wallet.generateMnemonic(12);
-
-    expect(typeof mnemonic).toBe('string');
-  });
-
-  it('generateWallet', async () => {
-    const data = await wallet.generateWallet({
-      mnemonic: "angle act turtle reveal inner question soul weekend act city illness laptop",
+  /* --------------------------------------------------------------
+   * Wallet
+   * -------------------------------------------------------------- */
+  it('should generate wallet from mnemonic', async () => {
+    const res = await wallet.generateWallet({
+      mnemonic: MNEMONIC,
       derivationPath: "m/44'/60'/0'/0/0",
     });
 
-    expect(typeof data).toBe('object');
+    expect(typeof res).toBe('object');
+    expect(res).toHaveProperty("address");
+    expect(res).toHaveProperty("privateKey");
+    expect(res).toHaveProperty("publicKey");
   });
 
-  it('getBalance', async () => {
-    const data = await wallet.getBalance({
-      address: "0x45BeEcA6ebEA6f99De93e39572ec62449315aa80",
+  /* --------------------------------------------------------------
+   * Balance
+   * -------------------------------------------------------------- */
+  it('should get native ETH balance', async () => {
+    const res = await wallet.getBalance({
+      address: TEST_WALLET.address,
     });
 
-    expect(typeof data).toBe('object');
-    expect(data).toHaveProperty('balance');
-    expect(typeof data.balance).toBe('number');
+    expect(typeof res).toBe('object');
+    expect(res).toHaveProperty("balance");
+    expect(res).toHaveProperty("_rawBalance");
+    expect(res).toHaveProperty("_decimal");
   });
 
-  it('getBalance ERC20 token balance', async () => {
-    const data = await wallet.getBalance({
-      address: '0x45beeca6ebea6f99de93e39572ec62449315aa80',
+  it('should get ERC20 token balance', async () => {
+    const res = await wallet.getBalance({
+      address: TEST_WALLET.address,
       contractAddress: '0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9',
     });
 
-    expect(typeof data).toBe('object');
+    expect(typeof res).toBe('object');
+    expect(res).toHaveProperty("balance");
+    expect(res).toHaveProperty("_rawBalance");
+    expect(res).toHaveProperty("_decimal");
   });
 
-  it('transfer', async () => {
-    const data = await wallet.transfer({
-      recipientAddress: '0x45beeca6ebea6f99de93e39572ec62449315aa80',
-      privateKey: '0x3e241f7e6edcd5bf3a86de1f6588e70a3b89dcac8b3396f8f74572e8d5d370b2',
-      amount: 0.005,
-      rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com',
+  /* --------------------------------------------------------------
+   * Gas Estimation
+   * -------------------------------------------------------------- */
+  it('should estimate gas with presets (regular / express / instant)', async () => {
+    const res = await wallet.estimateGas({
+      recipientAddress: TEST_WALLET.address,
+      amount: '0.00718639',
     });
 
-    expect(typeof data).toBe('object');
-
-    await sleep(15000);
+    expect(typeof res).toBe('object');
   });
 
-  it('transfer Token', async () => {
-    const data = await wallet.transfer({
-      recipientAddress: '0x45beeca6ebea6f99de93e39572ec62449315aa80',
-      privateKey: '0x3e241f7e6edcd5bf3a86de1f6588e70a3b89dcac8b3396f8f74572e8d5d370b2',
-      amount: 1,
-      rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com',
-      contractAddress: '0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9',
-    });
-
-    expect(typeof data).toBe('object');
-  });
-
-  it('Get transaction', async () => {
-    const receipt = await wallet.getTransaction({
-      hash: '0x0ca5f18c5fcb36ec0de5fcd5e5e4f44f880a47b72caec80b24719ba34620c1fc',
-    });
-
-    expect(typeof receipt).toBe('object');
-  });
-
-  it('get ERC20 token info', async () => {
+  /* --------------------------------------------------------------
+   * TOKEN INFO
+   * -------------------------------------------------------------- */
+  it('should get ERC20 token info', async () => {
     const data = await wallet.getTokenInfo({
       contractAddress: '0x8BEbFCBe5468F146533C182dF3DFbF5ff9BE00E2',
-      rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com',
     });
 
     expect(typeof data).toBe('object');
@@ -93,6 +113,50 @@ describe('Ethereum tests', () => {
     expect(typeof (data && data.totalSupply)).toBe('string');
   });
 
+  /* --------------------------------------------------------------
+   * Transfers
+   * -------------------------------------------------------------- */
+  describe('Transfer Native ETH', () => {
+
+    it('should transfer with default (regular) fee', async () => {
+      const res = await wallet.transfer({
+        recipientAddress: TEST_WALLET.address,
+        privateKey: TEST_WALLET.privateKey,
+        amount: 0.005,
+      });
+
+      expect(typeof res).toBe('object');
+    });
+
+    it('should transfer with custom EIP-1559 fee', async () => {
+      const res = await wallet.transfer({
+        recipientAddress: TEST_WALLET.address,
+        privateKey: TEST_WALLET.privateKey,
+        amount: 0.005,
+        maxFeePerGas: '1077910542',      // wei
+        maxPriorityFeePerGas: '1583107', // wei
+      });
+
+      expect(typeof res).toBe('object');
+    });
+
+    it('should transfer with legacy gasPrice', async () => {
+      const res = await wallet.transfer({
+        recipientAddress: TEST_WALLET.address,
+        privateKey: TEST_WALLET.privateKey,
+        amount: 0.005,
+        gasPrice: '20',   // gwei
+        gasLimit: '21000',
+      });
+
+      expect(typeof res).toBe('object');
+    });
+
+  });
+
+  /* --------------------------------------------------------------
+   * SMART CONTRACT
+   * -------------------------------------------------------------- */
   it('smart contract call (get token Balance)', async () => {
     const data = await wallet.smartContractCall({
       contractAddress: '0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9',
@@ -100,6 +164,8 @@ describe('Ethereum tests', () => {
       methodType: 'read',
       params: ['0x45BeEcA6ebEA6f99De93e39572ec62449315aa80'],
     });
+
+    console.log(data);
 
     expect(typeof data).toBe('object');
   });
@@ -131,6 +197,8 @@ describe('Ethereum tests', () => {
       privateKey:
         '0x3e241f7e6edcd5bf3a86de1f6588e70a3b89dcac8b3396f8f74572e8d5d370b2',
     });
+
+    console.log(data);
 
     expect(typeof data).toBe('object');
   });

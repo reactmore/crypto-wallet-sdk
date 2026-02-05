@@ -4,7 +4,7 @@ import { BigNumber } from "@okxweb3/crypto-lib";
 import { EthWallet as EthWalletOkx } from "@okxweb3/coin-ethereum";
 import { GenerateWalletPayload, TokenInfo, IResponse } from "./../../types";
 import { successResponse, formatAmount } from "./../../utils";
-import { GetContract, BalancePayload, TransferPayload, GetTransactionPayload, ISmartContractCallPayload, SignerPayload, GetErcTokenInfoPayload } from "./types";
+import { GetContract, BalancePayload, TransferPayload, GetTransactionPayload, ISmartContractCallPayload, SignerPayload, GetErcTokenInfoPayload, estimateGasPayload } from "./types";
 import { ethers } from "ethers";
 import erc20Abi from "./abi/erc20.json";
 
@@ -45,11 +45,15 @@ export class EvmWallet extends BaseWallet {
                 abi || erc20Abi,
                 signer || providerInstance
             );
+
+            const code = await providerInstance.getCode(contractAddress);
+            if (code === "0x") {
+                throw new Error("Address is not a contract");
+            }
         }
 
         return { contract, signer, gasFeeData, nonce, providerInstance };
     }
-
 
     async generateWallet({ mnemonic, derivationPath }: GenerateWalletPayload): Promise<IResponse> {
         const hdPath = derivationPath || "m/44'/60'/0'/0/0";
@@ -93,9 +97,7 @@ export class EvmWallet extends BaseWallet {
         const recipientAddress = await this.wallet.validAddress({ address: args.recipientAddress });
         if (!recipientAddress.isValid) throw new Error("address not valid");
 
-        // ===============================
         // VALIDASI FEE
-        // ===============================
         if (args.maxPriorityFeePerGas && args.maxFeePerGas) {
             const prio = BigInt(args.maxPriorityFeePerGas);
             const max = BigInt(args.maxFeePerGas);
@@ -108,9 +110,6 @@ export class EvmWallet extends BaseWallet {
             throw new Error("Cannot use gasPrice with EIP-1559 fee fields");
         }
 
-        // ===============================
-        // HITUNG VALUE & GAS LIMIT
-        // ===============================
         let value: bigint;
         let gasLimit: bigint;
 
@@ -131,9 +130,7 @@ export class EvmWallet extends BaseWallet {
             gasLimit = args.gasLimit ? BigInt(args.gasLimit) : 21000n;
         }
 
-        // ===============================
-        // AUTO DEFAULT FEE (PAKAI REGULAR)
-        // ===============================
+        // DEFAULT FEE
         const noFeeProvided =
             !args.gasPrice &&
             !args.maxFeePerGas &&
@@ -143,7 +140,7 @@ export class EvmWallet extends BaseWallet {
             const estimate = await this.estimateGas({
                 rpcUrl: rpcUrl ?? this.config.rpcUrl,
                 recipientAddress: args.recipientAddress,
-                amount: args.amount,
+                amount: args.amount.toString(),
             });
 
             gasLimit = BigInt(estimate.gasLimit);
@@ -265,7 +262,7 @@ export class EvmWallet extends BaseWallet {
         }
     };
 
-    async estimateGas({ rpcUrl, recipientAddress, amount }: any): Promise<IResponse> {
+    async estimateGas({ rpcUrl, recipientAddress, amount }: estimateGasPayload): Promise<IResponse> {
         const { providerInstance } = await this.getContract({ rpcUrl: rpcUrl ?? this.config.rpcUrl });
 
         try {
@@ -372,38 +369,6 @@ export class EvmWallet extends BaseWallet {
         }
     }
 
-    private async resolveDefaultFee(rpcUrl?: string) {
-        const providerInstance = provider(rpcUrl ?? this.config.rpcUrl);
-
-        const feeData = await providerInstance.getFeeData();
-        const block = await providerInstance.getBlock("latest");
-
-        // LEGACY
-        if (
-            !feeData.maxFeePerGas ||
-            !feeData.maxPriorityFeePerGas ||
-            !block ||
-            block.baseFeePerGas === null
-        ) {
-            if (!feeData.gasPrice) {
-                throw new Error("Unable to resolve gasPrice from provider");
-            }
-
-            return {
-                gasPrice: feeData.gasPrice.toString(), // wei
-            };
-        }
-
-        // EIP-1559 REGULAR
-        const baseFee = BigInt(block.baseFeePerGas);
-        const priority = BigInt(feeData.maxPriorityFeePerGas);
-
-        return {
-            maxPriorityFeePerGas: priority.toString(), // wei
-            maxFeePerGas: (baseFee + priority).toString(), // wei
-        };
-    }
-
     private async buildSignParams({ args, nonce, gasFeeData, recipientAddress, value, contractAddress }: SignerPayload) {
         const txBase = {
             to: recipientAddress.address,
@@ -444,5 +409,4 @@ export class EvmWallet extends BaseWallet {
             },
         };
     }
-
 }

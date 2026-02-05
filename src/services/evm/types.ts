@@ -15,16 +15,16 @@ export interface BalancePayload {
 
 export interface TransferPayload {
     recipientAddress: string;
-    amount: number;
+    amount: string | number;     // ⬅️ allow string/number
     rpcUrl?: string;
     privateKey: string;
-    gasPrice?: string;              // gwei (legacy)
+    gasPrice?: string;           // wei (legacy after estimate)
     contractAddress?: string;
     nonce?: number;
     data?: string;
-    gasLimit?: string;              // unit gas
-    maxPriorityFeePerGas?: string;  // wei
-    maxFeePerGas?: string;          // wei
+    gasLimit?: string | number;  // ⬅️ allow number
+    maxPriorityFeePerGas?: string; // wei
+    maxFeePerGas?: string;         // wei
 }
 
 export interface GetTransactionPayload {
@@ -43,7 +43,7 @@ export interface ISmartContractCallPayload {
     value?: number;
     contractAbi?: any[];
     gasPrice?: string;
-    gasLimit?: number;
+    gasLimit?: string | number;
     feeLimit?: number;
     nonce?: number;
     privateKey?: string;
@@ -63,4 +63,11 @@ export interface GetErcTokenInfoPayload {
     contractAddress: string;
     cluster?: 'mainnet-beta' | 'testnet' | 'devnet';
     apiKey?: string;
+}
+
+export interface estimateGasPayload {
+    rpcUrl?: string;
+    recipientAddress: string;
+    cluster?: 'mainnet-beta' | 'testnet' | 'devnet';
+    amount: string | number;   // ⬅️ allow number
 }
