@@ -3,7 +3,7 @@ import { DexConfig } from "../../types";
 import { BigNumber } from "@okxweb3/crypto-lib";
 import { EthWallet as EthWalletOkx } from "@okxweb3/coin-ethereum";
 import { GenerateWalletPayload, TokenInfo, IResponse } from "./../../types";
-import { successResponse, formatAmount } from "./../../utils";
+import { successResponse, formatAmount, parseAmount, parseGwei, formatGwei, formatEther, parseEther } from "./../../utils";
 import { GetContract, BalancePayload, TransferPayload, GetTransactionPayload, ISmartContractCallPayload, SignerPayload, GetErcTokenInfoPayload, estimateGasPayload } from "./types";
 import { ethers } from "ethers";
 import erc20Abi from "./abi/erc20.json";
@@ -117,7 +117,8 @@ export class EvmWallet extends BaseWallet {
             if (!contract) throw new Error("contract not valid");
 
             const decimals = await contract.decimals();
-            value = ethers.parseUnits(args.amount.toString(), decimals);
+            value = parseAmount(args.amount.toString(), decimals);
+
 
             gasLimit = args.gasLimit
                 ? BigInt(args.gasLimit)
@@ -126,7 +127,7 @@ export class EvmWallet extends BaseWallet {
                     value
                 );
         } else {
-            value = ethers.parseEther(args.amount.toString());
+            value = parseEther(args.amount.toString());
             gasLimit = args.gasLimit ? BigInt(args.gasLimit) : 21000n;
         }
 
@@ -141,6 +142,7 @@ export class EvmWallet extends BaseWallet {
                 rpcUrl: rpcUrl ?? this.config.rpcUrl,
                 recipientAddress: args.recipientAddress,
                 amount: args.amount.toString(),
+                data: args.data,
             });
 
             gasLimit = BigInt(estimate.gasLimit);
@@ -184,18 +186,36 @@ export class EvmWallet extends BaseWallet {
         return successResponse({ ...broadcast });
     }
 
-    async getTransaction({ hash, rpcUrl }: GetTransactionPayload): Promise<IResponse> {
-        const { providerInstance } = await this.getContract({ rpcUrl: rpcUrl ?? this.config.rpcUrl, });
+    async getTransaction({ hash, rpcUrl, withReceipt }: GetTransactionPayload): Promise<IResponse> {
+        const { providerInstance } = await this.getContract({ rpcUrl: rpcUrl ?? this.config.rpcUrl });
 
         try {
-            const tx = await providerInstance.getTransactionReceipt(hash);
+            if (withReceipt) {
+                const [tx, receipt] = await Promise.all([
+                    providerInstance.getTransaction(hash),
+                    providerInstance.getTransactionReceipt(hash),
+                ]);
+
+                const memo = tx?.data && tx.data !== "0x"
+                    ? ethers.toUtf8String(tx.data)
+                    : null;
+
+                return successResponse({
+                    transaction: tx,
+                    receipt,
+                    memo,
+                });
+            }
+
+            const tx = await providerInstance.getTransaction(hash);
+
             return successResponse({
-                ...tx,
+                transaction: tx,
             });
         } catch (error) {
             throw error;
         }
-    };
+    }
 
     async getTokenInfo({ contractAddress, rpcUrl }: GetErcTokenInfoPayload): Promise<IResponse> {
         const { contract } = await this.getContract({ contractAddress, rpcUrl: rpcUrl ?? this.config.rpcUrl, });
@@ -212,7 +232,8 @@ export class EvmWallet extends BaseWallet {
                 name,
                 symbol,
                 decimals,
-                totalSupply: ethers.formatUnits(totalSupply, decimals).toString(),
+                totalSupply: formatAmount(totalSupply.toString(), decimals).toString(),
+
             };
             return successResponse({ ...data });
         }
@@ -237,10 +258,11 @@ export class EvmWallet extends BaseWallet {
             } else if (args.methodType === 'write') {
                 overrides = {
                     gasPrice: args.gasPrice
-                        ? ethers.parseUnits(args.gasPrice, 'gwei')
+                        ? parseGwei(args.gasPrice)
                         : gasFeeData?.gasPrice,
+
                     nonce: args.nonce || nonce,
-                    value: args.value ? ethers.parseEther(args.value.toString()) : 0,
+                    value: args.value ? parseEther(args.value.toString()) : 0,
                 };
 
                 if (args.gasLimit) {
@@ -262,7 +284,7 @@ export class EvmWallet extends BaseWallet {
         }
     };
 
-    async estimateGas({ rpcUrl, recipientAddress, amount }: estimateGasPayload): Promise<IResponse> {
+    async estimateGas({ rpcUrl, recipientAddress, amount, data }: estimateGasPayload): Promise<IResponse> {
         const { providerInstance } = await this.getContract({ rpcUrl: rpcUrl ?? this.config.rpcUrl });
 
         try {
@@ -272,7 +294,10 @@ export class EvmWallet extends BaseWallet {
 
             const tx = {
                 to: recipientAddress,
-                value: ethers.parseEther(amount.toString()),
+                value: parseEther(amount.toString()),
+                data: data
+                    ? ethers.hexlify(ethers.toUtf8Bytes(data as string))
+                    : '0x',
             };
 
             const [feeData, gasLimit] = await Promise.all([
@@ -303,12 +328,12 @@ export class EvmWallet extends BaseWallet {
                     chainId,
                     gasLimit: gasLimit.toString(),
                     gasPrice: baseGasPrice.toString(),
-                    gasPriceGwei: ethers.formatUnits(baseGasPrice, "gwei"),
+                    gasPriceGwei: formatGwei(baseGasPrice),
                     model: "LEGACY",
                     fees: {
-                        regular: ethers.formatEther(regularFee),
-                        express: ethers.formatEther(expressFee),
-                        instant: ethers.formatEther(instantFee),
+                        regular: formatEther(regularFee),
+                        express: formatEther(expressFee),
+                        instant: formatEther(instantFee),
                     }
                 });
             }
@@ -320,7 +345,7 @@ export class EvmWallet extends BaseWallet {
 
             baseFee = BigInt(block!.baseFeePerGas ?? 0n);
             priorityFee = BigInt(
-                feeData.maxPriorityFeePerGas ?? ethers.parseUnits(DEFAULT_PRIORITY, "gwei")
+                feeData.maxPriorityFeePerGas ?? parseGwei(DEFAULT_PRIORITY)
             );
 
             const regularPriority = priorityFee;
@@ -342,22 +367,22 @@ export class EvmWallet extends BaseWallet {
             return successResponse({
                 chainId,
                 gasLimit: gasLimit.toString(),
-                baseFeeGwei: ethers.formatUnits(baseFee, "gwei"),
-                priorityFeeGwei: ethers.formatUnits(priorityFee, "gwei"),
+                baseFeeGwei: formatGwei(baseFee),
+                priorityFeeGwei: formatGwei(priorityFee),
                 model: "EIP1559",
                 fees: {
                     regular: {
-                        perCoin: ethers.formatEther(regularFee),
+                        perCoin: formatEther(regularFee),
                         maxPriorityFeePerGas: regularPriority.toString(),
                         maxFeePerGas: regularMaxFee.toString(),
                     },
                     express: {
-                        perCoin: ethers.formatEther(expressFee),
+                        perCoin: formatEther(expressFee),
                         maxPriorityFeePerGas: expressPriority.toString(),
                         maxFeePerGas: expressMaxFee.toString(),
                     },
                     instant: {
-                        perCoin: ethers.formatEther(instantFee),
+                        perCoin: formatEther(instantFee),
                         maxPriorityFeePerGas: instantPriority.toString(),
                         maxFeePerGas: instantMaxFee.toString(),
                     },
@@ -373,6 +398,9 @@ export class EvmWallet extends BaseWallet {
         const txBase = {
             to: recipientAddress.address,
             value: BigNumber(value.toString()),
+            data: args.data
+                ? ethers.hexlify(ethers.toUtf8Bytes(args.data as string))
+                : '0x',
             nonce: args.nonce || (await nonce),
             gasLimit: args.gasLimit ? BigNumber(args.gasLimit) : BigNumber(21000),
             chainId: Number(this.currentChain.id),
@@ -385,7 +413,7 @@ export class EvmWallet extends BaseWallet {
                 privateKey: args.privateKey,
                 data: {
                     ...txBase,
-                    gasPrice: BigNumber(ethers.parseUnits(args.gasPrice.toString(), "gwei").toString()),
+                    gasPrice: BigNumber(parseGwei(args.gasPrice).toString()),
                     type: 0,
                 },
             };

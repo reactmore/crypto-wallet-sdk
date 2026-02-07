@@ -1,4 +1,5 @@
 import { CryptoClientSdk } from '../src';
+import { ethers } from "ethers";
 
 /* ------------------------------------------------------------------
  * Helpers
@@ -16,6 +17,11 @@ const log = (title: string, data: any) => {
 const RPC = {
   ETH_SEPOLIA: 'https://ethereum-sepolia-rpc.publicnode.com',
 };
+
+const hash = {
+  in: '0x4ce1de2bea3f3efbf7aedf893432094f8f6ef95a951d7750539592fb7ef4d464',
+  withData: '0x952e1d03d945842d17b1b5f55cba3360363da7ace4889ffcb7babbfadbb8b977'
+}
 
 const TEST_WALLET = {
   address: '0x45beeca6ebea6f99de93e39572ec62449315aa80',
@@ -86,6 +92,17 @@ describe('EVM Wallet (Ethereum Sepolia)', () => {
     expect(res).toHaveProperty("_decimal");
   });
 
+  it('should get transactions hash', async () => {
+    const res = await wallet.getTransaction({
+      hash: hash.withData,
+      withReceipt: true,
+    });
+
+    log('transactions', res);
+
+    expect(typeof res).toBe('object');
+  });
+
   /* --------------------------------------------------------------
    * Gas Estimation
    * -------------------------------------------------------------- */
@@ -150,6 +167,46 @@ describe('EVM Wallet (Ethereum Sepolia)', () => {
       });
 
       expect(typeof res).toBe('object');
+    });
+
+    it('should transfer with checking balance, gasPrice', async () => {
+      const balance = await wallet.getBalance({
+        address: TEST_WALLET.address,
+      });
+
+      const balanceWei = BigInt(balance._rawBalance);
+
+      const est = await wallet.estimateGas({
+        recipientAddress: "0x5FD27e9acdE48E2F65e46c9e92B9e56Fa0Ac3f65",
+        amount: "0",
+      });
+
+      const gasLimit = BigInt(est.gasLimit);
+
+      // chose regular or another
+      const maxFeePerGas = BigInt(est.fees.regular.maxFeePerGas);
+
+      // worst-case fee
+      const feeWei = gasLimit * maxFeePerGas;
+      const sendWei = balanceWei - feeWei;
+
+      if (sendWei <= 0n) {
+        throw new Error("Balance not enough to pay gas");
+      }
+
+      const sendEth = ethers.formatEther(sendWei);
+
+
+      const trx = await wallet.transfer({
+        recipientAddress: '0x5FD27e9acdE48E2F65e46c9e92B9e56Fa0Ac3f65',
+        privateKey: TEST_WALLET.privateKey,
+        amount: sendEth,
+        gasLimit: gasLimit.toString(),
+        maxFeePerGas: maxFeePerGas.toString(),
+        maxPriorityFeePerGas: est.fees.regular.maxPriorityFeePerGas,
+      });
+
+      expect(typeof trx).toBe('object');
     });
 
   });

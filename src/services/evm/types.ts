@@ -30,6 +30,7 @@ export interface TransferPayload {
 export interface GetTransactionPayload {
     rpcUrl?: string;
     hash: string;
+    withReceipt?: boolean;
 }
 
 export interface ISmartContractCallPayload {
@@ -70,4 +71,5 @@ export interface estimateGasPayload {
     recipientAddress: string;
     cluster?: 'mainnet-beta' | 'testnet' | 'devnet';
     amount: string | number;   // ⬅️ allow number
+    data?: string;
 }
