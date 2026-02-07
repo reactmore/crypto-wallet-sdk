@@ -50,7 +50,7 @@ npm install
 or if published later:
 
 ```bash
-npm install crypto-wallet-sdk
+npm i @reactmore/crypto-wallet-sdk
 ```
 
 ---
