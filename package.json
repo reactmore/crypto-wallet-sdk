@@ -1,13 +1,18 @@
 {
-  "name": "crypto-wallet-sdk",
+  "name": "@reactmore/crypto-wallet-sdk",
   "version": "1.0.0",
+  "description": "Multi-chain crypto wallet SDK for EVM, Bitcoin, Solana, and more",
+  "author": "Reactmore",
+  "license": "ISC",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "private": true,
+  "module": "dist/crypto-wallet-sdk.esm.js",
   "files": [
-    "dist",
-    "src"
+    "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "start": "tsdx watch",
     "build": "tsdx build",
@@ -30,10 +35,6 @@
       "pre-commit": "tsdx lint"
     }
   },
-  "author": "",
-  "license": "ISC",
-  "description": "",
-  "module": "dist/crypto-wallet-sdk.esm.js",
   "size-limit": [
     {
       "path": "dist/crypto-wallet-sdk.cjs.production.min.js",
