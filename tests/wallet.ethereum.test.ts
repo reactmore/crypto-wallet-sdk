@@ -54,9 +54,32 @@ describe('EVM Wallet (Ethereum Sepolia)', () => {
   /* --------------------------------------------------------------
    * Wallet
    * -------------------------------------------------------------- */
+  it('should generate new wallet', async () => {
+    const res = await wallet.generateWallet({
+      derivationPath: "m/44'/60'/0'/0/0",
+    });
+
+    expect(typeof res).toBe('object');
+    expect(res).toHaveProperty("address");
+    expect(res).toHaveProperty("privateKey");
+    expect(res).toHaveProperty("publicKey");
+  });
+
   it('should generate wallet from mnemonic', async () => {
     const res = await wallet.generateWallet({
       mnemonic: MNEMONIC,
+      derivationPath: "m/44'/60'/0'/0/0",
+    });
+
+    expect(typeof res).toBe('object');
+    expect(res).toHaveProperty("address");
+    expect(res).toHaveProperty("privateKey");
+    expect(res).toHaveProperty("publicKey");
+  });
+
+  it('should generate wallet from privatekey', async () => {
+    const res = await wallet.generateWallet({
+      privateKey: TEST_WALLET.privateKey,
       derivationPath: "m/44'/60'/0'/0/0",
     });
 

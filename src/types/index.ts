@@ -27,6 +27,7 @@ export interface IResponse {
 
 export interface GenerateWalletPayload {
     mnemonic?: string;
+    privateKey?: string;
     derivationPath?: string;
 }
 

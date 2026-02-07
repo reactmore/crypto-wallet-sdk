@@ -55,14 +55,32 @@ export class EvmWallet extends BaseWallet {
         return { contract, signer, gasFeeData, nonce, providerInstance };
     }
 
-    async generateWallet({ mnemonic, derivationPath }: GenerateWalletPayload): Promise<IResponse> {
+    async generateWallet({ mnemonic, privateKey, derivationPath }: GenerateWalletPayload): Promise<IResponse> {
         const hdPath = derivationPath || "m/44'/60'/0'/0/0";
-        const getMnemonic = mnemonic ?? (await this.generateMnemonic(12));
 
-        const derivePrivateKey = await this.wallet.getDerivedPrivateKey({ mnemonic: getMnemonic, hdPath });
-        const { address, publicKey } = await this.wallet.getNewAddress({ privateKey: derivePrivateKey });
+        if (mnemonic && privateKey) {
+            throw new Error("Provide either mnemonic or privateKey, not both");
+        }
 
-        return successResponse({ address, publicKey, privateKey: derivePrivateKey });
+        let derivePrivateKey: string;
+
+        if (privateKey) {
+            derivePrivateKey = privateKey;
+        } else if (mnemonic) {
+            derivePrivateKey = await this.wallet.getDerivedPrivateKey({ mnemonic, hdPath });
+        } else {
+            derivePrivateKey = await this.wallet.getRandomPrivateKey();
+        }
+
+        const { address, publicKey } = await this.wallet.getNewAddress({
+            privateKey: derivePrivateKey,
+        });
+
+        return successResponse({
+            address,
+            publicKey,
+            privateKey: derivePrivateKey,
+        });
     }
 
     async getBalance({ rpcUrl, contractAddress, address }: BalancePayload): Promise<IResponse> {
