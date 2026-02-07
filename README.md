@@ -58,7 +58,7 @@ npm i @reactmore/crypto-wallet-sdk
 ## 🚀 Quick Start
 
 ```ts
-import { CryptoClientSdk } from "crypto-wallet-sdk";
+import { CryptoClientSdk } from "@reactmore/crypto-wallet-sdk";
 
 const client = new CryptoClientSdk({
   network: "EVM",
