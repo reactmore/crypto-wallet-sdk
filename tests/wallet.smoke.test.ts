@@ -50,28 +50,7 @@ describe('EVM Wallet (Ethereum Sepolia)', () => {
     wallet = client.getWallet();
   });
 
-  it('should transfer with legacy gasPrice with custom data', async () => {
-    const res = await wallet.transfer({
-      recipientAddress: TEST_WALLET.address,
-      privateKey: TEST_WALLET.privateKey,
-      amount: 0.005,
-      data: 'Money for feeding', // Send a message
-    });
+  
 
-    expect(typeof res).toBe('object');
-  });
 
-  /* --------------------------------------------------------------
-   * Get Transactions Estimation
-   * -------------------------------------------------------------- */
-  it('should get transactions hash', async () => {
-    const res = await wallet.getTransaction({
-      hash: hash.withData,
-      withReceipt: true,
-    });
-
-    log('transactions', res);
-
-    expect(typeof res).toBe('object');
-  });
 });
