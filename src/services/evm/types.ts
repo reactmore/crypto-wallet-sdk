@@ -51,12 +51,14 @@ export interface ISmartContractCallPayload {
 }
 
 export interface SignerPayload {
-    args: any;
+    privateKey: string;
     nonce: Promise<number> | number | undefined;
-    gasFeeData: ethers.FeeData;
-    recipientAddress: { address: string };
-    value: bigint | string;
-    contractAddress?: string;
+    gasFeeData: any;
+    txTo: string;
+    txData: string;
+    txValue: bigint;
+    gasLimit: bigint;
+    args: any;
 }
 
 export interface GetErcTokenInfoPayload {

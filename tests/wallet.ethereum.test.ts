@@ -232,6 +232,62 @@ describe('EVM Wallet (Ethereum Sepolia)', () => {
       expect(typeof trx).toBe('object');
     });
 
+    it('should transfer all balance minus fee (LEGACY gasPrice)', async () => {
+        // 1. Get balance
+        const balance = await wallet.getBalance({
+          address: "0x2E5cdb1bBa0787E79355C3FFD8B0308790dC0f09",
+          rpcUrl: "https://binance.llamarpc.com",
+        });
+    
+        const balanceWei = BigInt(balance._rawBalance);
+    
+        // 2. Estimate gas (legacy)
+        const est = await wallet.estimateGas({
+          recipientAddress: "0x5FD27e9acdE48E2F65e46c9e92B9e56Fa0Ac3f65",
+          amount: "0",
+          rpcUrl: "https://binance.llamarpc.com",
+        });
+    
+        log("estimate", est);
+    
+    
+        const gasLimit = BigInt(est.gasLimit);
+        const gasPrice = BigInt(est.gasPrice);
+    
+        // 3. Compute fee
+        const feeWei = gasLimit * gasPrice;
+        const sendWei = balanceWei - feeWei;
+    
+        if (sendWei <= 0n) {
+          throw new Error("Balance not enough to pay gas");
+        }
+    
+        const sendEth = ethers.formatEther(sendWei);
+    
+        log("computed", {
+          balanceWei: balanceWei.toString(),
+          gasLimit: gasLimit.toString(),
+          gasPrice: gasPrice.toString(),
+          feeWei: feeWei.toString(),
+          sendWei: sendWei.toString(),
+          sendEth,
+        });
+    
+        // 4. Send tx (LEGACY)
+        const trx = await wallet.transfer({
+          recipientAddress: '0x5FD27e9acdE48E2F65e46c9e92B9e56Fa0Ac3f65',
+          privateKey: '0x9a08a2c99fd0c688a71a28501a523a26c60202c79d652be282bd49c50433cd41',
+          amount: sendEth,
+          gasLimit: gasLimit.toString(),
+          gasPrice: est.gasPrice, // 👈 LEGACY ONLY
+          rpcUrl: "https://binance.llamarpc.com",
+        });
+    
+        log("tx", trx);
+    
+        expect(typeof trx).toBe('object');
+      });
+
   });
 
   /* --------------------------------------------------------------

@@ -50,7 +50,42 @@ describe('EVM Wallet (Ethereum Sepolia)', () => {
     wallet = client.getWallet();
   });
 
-  
+  it('should get native ETH balance', async () => {
+    const res = await wallet.getBalance({
+      address: TEST_WALLET.address,
+    });
+
+    log('balance', res);
+
+    expect(typeof res).toBe('object');
+    expect(res).toHaveProperty("balance");
+    expect(res).toHaveProperty("_rawBalance");
+    expect(res).toHaveProperty("_decimal");
+  });
+
+  it('should transfer native', async () => {
+    const res = await wallet.transfer({
+      recipientAddress: TEST_WALLET.address,
+      privateKey: TEST_WALLET.privateKey,
+      amount: 0,
+    });
+
+    log('transfer native', res);
+    expect(typeof res).toBe('object');
+  });
+
+  it('should transfer token', async () => {
+    const res = await wallet.transfer({
+      recipientAddress: TEST_WALLET.address,
+      privateKey: TEST_WALLET.privateKey,
+      contractAddress: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",      // USDC
+      amount: 0.005,
+    });
+
+    log('transfer token', res);
+    expect(typeof res).toBe('object');
+  });
+
 
 
 });
