@@ -1,6 +1,6 @@
 {
   "name": "@reactmore/crypto-wallet-sdk",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Multi-chain crypto wallet SDK for EVM, Bitcoin, Solana, and more",
   "author": "Reactmore",
   "license": "ISC",
