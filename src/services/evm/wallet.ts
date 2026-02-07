@@ -142,7 +142,7 @@ export class EvmWallet extends BaseWallet {
                 ? BigInt(args.gasLimit)
                 : await contract.transfer.estimateGas(
                     args.recipientAddress,
-                    value
+                    value,
                 );
         } else {
             value = parseEther(args.amount.toString());
@@ -313,15 +313,15 @@ export class EvmWallet extends BaseWallet {
             const tx = {
                 to: recipientAddress,
                 value: parseEther(amount.toString()),
-                data: data
-                    ? ethers.hexlify(ethers.toUtf8Bytes(data as string))
-                    : '0x',
+                data: data ? ethers.hexlify(ethers.toUtf8Bytes(data as string)) : '0x',
             };
 
             const [feeData, gasLimit] = await Promise.all([
                 providerInstance.getFeeData(),
                 providerInstance.estimateGas(tx),
             ]);
+
+          
 
             const { gasPrice, maxFeePerGas, maxPriorityFeePerGas } = feeData;
 
