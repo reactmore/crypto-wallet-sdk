@@ -106,16 +106,27 @@ export class EvmWallet extends BaseWallet {
     }
 
     async transfer({ privateKey, contractAddress, rpcUrl, ...args }: TransferPayload): Promise<IResponse> {
-        const { contract, providerInstance, gasFeeData, nonce } = await this.getContract({
+
+        const { contract, providerInstance, gasFeeData, nonce, signer } = await this.getContract({
             rpcUrl: rpcUrl ?? this.config.rpcUrl,
             privateKey,
             contractAddress,
         });
 
-        const recipientAddress = await this.wallet.validAddress({ address: args.recipientAddress });
-        if (!recipientAddress.isValid) throw new Error("address not valid");
+        // =========================
+        // VALIDATE ADDRESS
+        // =========================
+        const recipientAddress = await this.wallet.validAddress({
+            address: args.recipientAddress
+        });
 
-        // VALIDASI FEE
+        if (!recipientAddress.isValid) {
+            throw new Error("recipient address not valid");
+        }
+
+        // =========================
+        // VALIDATE FEE INPUT
+        // =========================
         if (args.maxPriorityFeePerGas && args.maxFeePerGas) {
             const prio = BigInt(args.maxPriorityFeePerGas);
             const max = BigInt(args.maxFeePerGas);
@@ -125,77 +136,94 @@ export class EvmWallet extends BaseWallet {
         }
 
         if (args.gasPrice && (args.maxFeePerGas || args.maxPriorityFeePerGas)) {
-            throw new Error("Cannot use gasPrice with EIP-1559 fee fields");
+            throw new Error("Cannot mix gasPrice with EIP-1559 fields");
         }
 
-        let value: bigint;
+        // =========================
+        // BUILD TX DATA
+        // =========================
+        let txTo: string;
+        let txData: string;
+        let txValue: bigint;
         let gasLimit: bigint;
 
         if (contractAddress) {
+            // ===== ERC20 TRANSFER =====
             if (!contract) throw new Error("contract not valid");
 
             const decimals = await contract.decimals();
-            value = parseAmount(args.amount.toString(), decimals);
+            const amount = parseAmount(args.amount.toString(), decimals);
 
+            txData = contract.interface.encodeFunctionData(
+                "transfer",
+                [args.recipientAddress, amount]
+            );
+
+            txTo = contractAddress;
+            txValue = 0n;
 
             gasLimit = args.gasLimit
                 ? BigInt(args.gasLimit)
-                : await contract.transfer.estimateGas(
-                    args.recipientAddress,
-                    value,
-                );
+                : await providerInstance.estimateGas({
+                    from: await signer!.getAddress(),
+                    to: contractAddress,
+                    data: txData,
+                });
+
         } else {
-            value = parseEther(args.amount.toString());
-            gasLimit = args.gasLimit ? BigInt(args.gasLimit) : 21000n;
+            // ===== NATIVE TRANSFER =====
+            txTo = args.recipientAddress;
+            txValue = parseEther(args.amount.toString());
+
+            txData = args.data
+                ? ethers.hexlify(ethers.toUtf8Bytes(args.data))
+                : '0x';
+
+            gasLimit = args.gasLimit
+                ? BigInt(args.gasLimit)
+                : 21000n;
         }
 
-        // DEFAULT FEE
+        // =========================
+        // AUTO ESTIMATE FEE
+        // =========================
         const noFeeProvided =
             !args.gasPrice &&
             !args.maxFeePerGas &&
             !args.maxPriorityFeePerGas;
 
-        if (noFeeProvided) {
+        if (noFeeProvided && !contractAddress) {
             const estimate = await this.estimateGas({
                 rpcUrl: rpcUrl ?? this.config.rpcUrl,
-                recipientAddress: args.recipientAddress,
+                recipientAddress: txTo,
                 amount: args.amount.toString(),
-                data: args.data,
+                data: txData !== '0x' ? txData : undefined,
             });
 
             gasLimit = BigInt(estimate.gasLimit);
 
-            // ===== LEGACY =====
             if (estimate.model === "LEGACY") {
-                if (!estimate.gasPrice) {
-                    throw new Error("LEGACY estimate missing gasPrice");
-                }
-
-                args.gasPrice = estimate.gasPrice; // wei
+                args.gasPrice = estimate.gasPrice!;
                 return this.transfer({ privateKey, contractAddress, rpcUrl, ...args });
             }
 
-            // ===== EIP-1559 =====
             const fee = estimate.fees.regular;
-
-            if (!fee?.maxFeePerGas || !fee?.maxPriorityFeePerGas) {
-                throw new Error("EIP1559 estimate missing fee fields");
-            }
-
             args.maxFeePerGas = fee.maxFeePerGas;
             args.maxPriorityFeePerGas = fee.maxPriorityFeePerGas;
         }
 
-        // ===============================
-        // SIGN & BROADCAST
-        // ===============================
+        // =========================
+        // SIGN & SEND
+        // =========================
         const signParams = await this.buildSignParams({
-            args: { ...args, privateKey, gasLimit },
+            privateKey,
             nonce,
             gasFeeData,
-            recipientAddress,
-            value,
-            contractAddress,
+            txTo,
+            txData,
+            txValue,
+            gasLimit,
+            args
         });
 
         const signedTx = await this.wallet.signTransaction(signParams);
@@ -203,6 +231,7 @@ export class EvmWallet extends BaseWallet {
 
         return successResponse({ ...broadcast });
     }
+
 
     async getTransaction({ hash, rpcUrl, withReceipt }: GetTransactionPayload): Promise<IResponse> {
         const { providerInstance } = await this.getContract({ rpcUrl: rpcUrl ?? this.config.rpcUrl });
@@ -321,7 +350,7 @@ export class EvmWallet extends BaseWallet {
                 providerInstance.estimateGas(tx),
             ]);
 
-          
+
 
             const { gasPrice, maxFeePerGas, maxPriorityFeePerGas } = feeData;
 
@@ -412,47 +441,52 @@ export class EvmWallet extends BaseWallet {
         }
     }
 
-    private async buildSignParams({ args, nonce, gasFeeData, recipientAddress, value, contractAddress }: SignerPayload) {
+    private async buildSignParams({ privateKey, nonce, gasFeeData, txTo, txData, txValue, gasLimit, args,
+    }: SignerPayload) {
+
         const txBase = {
-            to: recipientAddress.address,
-            value: BigNumber(value.toString()),
-            data: args.data
-                ? ethers.hexlify(ethers.toUtf8Bytes(args.data as string))
-                : '0x',
-            nonce: args.nonce || (await nonce),
-            gasLimit: args.gasLimit ? BigNumber(args.gasLimit) : BigNumber(21000),
+            to: txTo,
+            value: BigNumber(txValue.toString()),
+            data: txData,
+            nonce: args.nonce ?? await nonce,
+            gasLimit: BigNumber(gasLimit.toString()),
             chainId: Number(this.currentChain.id),
-            ...(contractAddress ? { contractAddress } : {}),
         };
 
-        // legacy vs eip-1559
+        // =========================
+        // LEGACY TX
+        // =========================
         if (args.gasPrice) {
             return {
-                privateKey: args.privateKey,
+                privateKey,
                 data: {
                     ...txBase,
-                    gasPrice: BigNumber(parseGwei(args.gasPrice).toString()),
+                    gasPrice: BigNumber(
+                        parseGwei(args.gasPrice).toString()
+                    ),
                     type: 0,
                 },
             };
         }
 
+        // =========================
+        // EIP-1559 TX
+        // =========================
         return {
-            privateKey: args.privateKey,
+            privateKey,
             data: {
                 ...txBase,
                 type: 2,
                 maxPriorityFeePerGas: BigNumber(
-                    args.maxPriorityFeePerGas
-                        ? args.maxPriorityFeePerGas
-                        : gasFeeData.maxPriorityFeePerGas!.toString()
+                    args.maxPriorityFeePerGas ??
+                    gasFeeData.maxPriorityFeePerGas!.toString()
                 ),
                 maxFeePerGas: BigNumber(
-                    args.maxFeePerGas
-                        ? args.maxFeePerGas
-                        : gasFeeData.maxFeePerGas!.toString()
+                    args.maxFeePerGas ??
+                    gasFeeData.maxFeePerGas!.toString()
                 ),
             },
         };
     }
+
 }

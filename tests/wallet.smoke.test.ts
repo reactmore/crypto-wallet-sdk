@@ -63,6 +63,17 @@ describe('EVM Wallet (Ethereum Sepolia)', () => {
     expect(res).toHaveProperty("_decimal");
   });
 
+  it('should transfer native', async () => {
+    const res = await wallet.transfer({
+      recipientAddress: TEST_WALLET.address,
+      privateKey: TEST_WALLET.privateKey,
+      amount: 0,
+    });
+
+    log('transfer native', res);
+    expect(typeof res).toBe('object');
+  });
+
   it('should transfer token', async () => {
     const res = await wallet.transfer({
       recipientAddress: TEST_WALLET.address,
@@ -71,7 +82,7 @@ describe('EVM Wallet (Ethereum Sepolia)', () => {
       amount: 0.005,
     });
 
-    log('balance', res);
+    log('transfer token', res);
     expect(typeof res).toBe('object');
   });
 
