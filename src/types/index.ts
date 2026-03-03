@@ -9,17 +9,26 @@ export interface ChainConfig {
     dexContractAddress?: string;
 }
 
-export interface NetworkConfigs {
-    [chainId: string]: ChainConfig;
+export type DexNetwork = "EVM" | "SOL" | "BTC" | "SUI";
+
+export interface DexNetworkConfigs {
+    [network: string]: {
+        [key: string]: ChainConfig; // chainId | cluster | whatever
+    };
 }
 
 export interface DexConfig {
-    networks?: NetworkConfigs;
+    network: DexNetwork;
+    // override configs (optional)
+    networks?: DexNetworkConfigs;
+    // runtime options
     timeout?: number;
-    chainId?: string;
-    cluster?: string;
+    // network-specific hints
+    chainId?: string;   // EVM
+    cluster?: string;   // SOL
     rpcUrl?: string;
 }
+
 
 export interface IResponse {
     [key: string]: any;
