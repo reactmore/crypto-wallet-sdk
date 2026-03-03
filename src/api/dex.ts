@@ -8,7 +8,7 @@ import {
  * Types
  * ------------------------------------------------------------------ */
 
-export type DexNetwork = "EVM" | "SOL" | "SUI" | "BTC";
+export type DexNetwork = "EVM" | "SOL" | "SUI" | "BTC" | "DOGE";
 
 export type DexNetworksConfig = {
     [N in DexNetwork]?: Record<string, ChainConfig>;
@@ -271,6 +271,46 @@ export class DexAPI {
             mainnet: {
                 id: "mainnet",
                 explorer: "https://web3.okx.com/explorer/sui/tx",
+                defaultSlippage: "0.005",
+                maxSlippage: "1",
+                confirmationTimeout: 60000,
+                maxRetries: 3,
+            },
+        },
+
+        /* ======================= BTC ======================= */
+        BTC: {
+            mainnet: {
+                id: "mainnet",
+                explorer: "https://www.blockchain.com/explorer/bitcoin/tx",
+                defaultSlippage: "0.005",
+                maxSlippage: "1",
+                confirmationTimeout: 60000,
+                maxRetries: 3,
+            },
+            testnet: {
+                id: "testnet",
+                explorer: "https://www.blockchain.com/explorer/bitcoin-testnet/tx",
+                defaultSlippage: "0.005",
+                maxSlippage: "1",
+                confirmationTimeout: 60000,
+                maxRetries: 3,
+            },
+        },
+
+        /* ======================= DOGE ======================= */
+        DOGE: {
+            mainnet: {
+                id: "mainnet",
+                explorer: "https://dogechain.info/tx/",
+                defaultSlippage: "0.005",
+                maxSlippage: "1",
+                confirmationTimeout: 60000,
+                maxRetries: 3,
+            },
+            testnet: {
+                id: "testnet",
+                explorer: "https://sochain.com/tx/DOGETEST/",
                 defaultSlippage: "0.005",
                 maxSlippage: "1",
                 confirmationTimeout: 60000,

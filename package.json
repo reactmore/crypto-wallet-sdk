@@ -19,6 +19,7 @@
     "test": "tsdx test",
     "test:smoke": "tsdx test --testPathPattern=smoke",
     "test:btc": "tsdx test --testPathPattern=bitcoin",
+    "test:doge": "tsdx test --testPathPattern=doge",
     "test:eth": "tsdx test --testPathPattern=ethereum",
     "test:sol": "tsdx test --testPathPattern=solana",
     "test:tron": "tsdx test --testPathPattern=tron",
