@@ -45,6 +45,13 @@ abstract class BaseWallet {
             return this.dex.getNetworkConfig("SOL", key);
         }
 
+
+        // -------- BTC / DOGE --------
+        if (network === "BTC" || network === "DOGE") {
+            const key = cluster ?? "mainnet";
+            return this.dex.getNetworkConfig(network, key);
+        }
+
         // -------- FUTURE NETWORKS --------
         throw new Error(`Unsupported network: ${network}`);
     }

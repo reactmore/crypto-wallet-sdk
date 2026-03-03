@@ -30,9 +30,9 @@ A multi-chain crypto wallet SDK focused on EVM first. This SDK is designed for b
 | Base         | EVM          | 🟡 Tested      | Compatible with EVM adapter   |
 | Polygon      | EVM          | 🟡 Tested      | Compatible with EVM adapter   |
 | Solana       | Non-EVM      | 🟡 Planned     | Separate adapter              |
-| Bitcoin      | Non-EVM      | 🟡 Planned     | Separate adapter              |
+| Bitcoin      | Non-EVM      | ✅ Supported   | UTXO adapter available         |
 | Tron         | Non-EVM      | 🟡 Planned     | Separate adapter              |
-| Doge / LTC   | Non-EVM      | 🟡 Planned     | UTXO-based chains             |
+| Dogecoin     | Non-EVM      | ✅ Supported   | UTXO adapter available         |
 
 Legend:
 - ✅ Supported = Already implemented / usable

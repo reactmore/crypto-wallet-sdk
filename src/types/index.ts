@@ -9,7 +9,7 @@ export interface ChainConfig {
     dexContractAddress?: string;
 }
 
-export type DexNetwork = "EVM" | "SOL" | "BTC" | "SUI";
+export type DexNetwork = "EVM" | "SOL" | "BTC" | "DOGE" | "SUI";
 
 export interface DexNetworkConfigs {
     [network: string]: {
