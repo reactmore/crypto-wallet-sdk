@@ -65,7 +65,32 @@ describe('Bitcoin wallet service', () => {
     });
   });
 
-  it('transfer builds tx and broadcasts', async () => {
+  it('getTransaction returns transaction details by hash', async () => {
+    const wallet = makeWallet();
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        txid: 'tx-hash',
+        fee: 1000,
+        status: { confirmed: true, block_height: 123, block_time: 1711111 },
+        vin: [{ txid: 'in1' }],
+        vout: [{ value: 1000 }],
+      }),
+    } as any);
+
+    const result = await wallet.getTransaction({ hash: 'tx-hash' });
+
+    expect(result).toMatchObject({
+      hash: 'tx-hash',
+      fee: 0.00001,
+      _rawFee: 1000,
+      confirmed: true,
+      blockHeight: 123,
+    });
+  });
+
+  it('transfer supports explicit fee and subtractFee', async () => {
     const wallet = makeWallet() as any;
 
     wallet.wallet.getNewAddress = jest.fn().mockResolvedValue({ address: 'tb1qsender' });
@@ -77,7 +102,7 @@ describe('Bitcoin wallet service', () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ([
-          { txid: 'u1', vout: 0, value: 120000 },
+          { txid: 'u1', vout: 0, value: 120000, status: { confirmed: true } },
         ]),
       } as any)
       .mockResolvedValueOnce({
@@ -89,14 +114,16 @@ describe('Bitcoin wallet service', () => {
       privateKey: 'priv',
       recipientAddress: 'tb1qrecipient',
       amount: 0.001,
-      feePerB: 1,
+      fee: 5000,
+      subtractFee: true,
     });
 
     expect(wallet.wallet.signTransaction).toHaveBeenCalled();
     expect(result).toMatchObject({
       txid: 'broadcasted-txid',
-      amount: 0.001,
+      amount: 0.00095,
       to: 'tb1qrecipient',
+      subtractFee: true,
     });
   });
 });

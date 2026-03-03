@@ -15,6 +15,8 @@ interface TransferPayload {
     recipientAddress: string;
     amount: number | string;
     feePerB?: number;
+    fee?: number;
+    subtractFee?: boolean;
     addressType?: "Legacy" | "segwit_native" | "segwit_nested" | "segwit_taproot";
 }
 
@@ -23,7 +25,33 @@ interface GetTransactionsPayload {
     limit?: number;
 }
 
+interface GetTransactionPayload {
+    hash: string;
+}
+
+interface BtcUtxo {
+    txid: string;
+    vout: number;
+    value: number;
+    status?: {
+        confirmed?: boolean;
+        block_height?: number;
+        block_time?: number;
+    };
+}
+
 const DUST_LIMIT = 546;
+const DEFAULT_FIXED_FEE = 10000;
+
+const estimateTxSize = (inputs: number, outputs: number) => 10 + inputs * 68 + outputs * 31;
+
+const sortUtxos = (a: BtcUtxo, b: BtcUtxo) => {
+    if (a.value !== b.value) return b.value - a.value;
+    const aConf = a.status?.confirmed ? 1 : 0;
+    const bConf = b.status?.confirmed ? 1 : 0;
+    if (aConf !== bConf) return bConf - aConf;
+    return a.txid.localeCompare(b.txid);
+};
 
 export class BtcWallet extends BaseWallet {
 
@@ -58,7 +86,7 @@ export class BtcWallet extends BaseWallet {
         const derivePrivateKey = await this.wallet.getDerivedPrivateKey({ mnemonic: getMnemonic, hdPath });
         const { address, publicKey } = await this.wallet.getNewAddress({ privateKey: derivePrivateKey });
 
-        return successResponse({ address, publicKey, privateKey: derivePrivateKey });
+        return successResponse({ address, publicKey, privateKey: derivePrivateKey, mnemonic: getMnemonic });
     }
 
     async getBalance({ address }: BalancePayload): Promise<IResponse> {
@@ -112,7 +140,23 @@ export class BtcWallet extends BaseWallet {
         return successResponse({ transactions });
     }
 
-    async transfer({ privateKey, recipientAddress, amount, feePerB = 5, addressType }: TransferPayload): Promise<IResponse> {
+    async getTransaction({ hash }: GetTransactionPayload): Promise<IResponse> {
+        const response = await this.request(`/tx/${hash}`);
+        const tx = await response.json();
+
+        return successResponse({
+            hash: tx.txid,
+            fee: formatBTC((tx.fee ?? 0).toString()),
+            _rawFee: tx.fee ?? 0,
+            confirmed: Boolean(tx.status?.confirmed),
+            blockHeight: tx.status?.block_height ?? null,
+            blockTime: tx.status?.block_time ?? null,
+            inputs: tx.vin,
+            outputs: tx.vout,
+        });
+    }
+
+    async transfer({ privateKey, recipientAddress, amount, feePerB, fee = DEFAULT_FIXED_FEE, subtractFee = false, addressType }: TransferPayload): Promise<IResponse> {
         const sender = await this.wallet.getNewAddress({ privateKey, ...(addressType ? { addressType } : {}) });
         const senderAddress = sender.address;
         const recipientValidation = await this.wallet.validAddress({ address: recipientAddress });
@@ -122,30 +166,39 @@ export class BtcWallet extends BaseWallet {
         }
 
         const utxoResponse = await this.request(`/address/${senderAddress}/utxo`);
-        const utxos = await utxoResponse.json();
+        const utxos = (await utxoResponse.json() as BtcUtxo[]).sort(sortUtxos);
 
-        const sendAmount = Number(parseBTC(amount.toString()));
-        const selectedUtxos = [] as any[];
+        const requestedAmount = Number(parseBTC(amount.toString()));
+        const selectedUtxos: BtcUtxo[] = [];
         let selectedAmount = 0;
 
         for (const utxo of utxos) {
             selectedUtxos.push(utxo);
             selectedAmount += utxo.value;
 
-            const estimatedFee = Math.ceil((10 + selectedUtxos.length * 68 + 2 * 31) * feePerB);
-            if (selectedAmount >= sendAmount + estimatedFee) {
-                break;
+            const dynamicFee = feePerB ? Math.ceil(estimateTxSize(selectedUtxos.length, 2) * feePerB) : fee;
+            const transferAmount = subtractFee ? requestedAmount - dynamicFee : requestedAmount;
+
+            if (transferAmount <= 0) {
+                throw new Error("Amount must be greater than fee when subtractFee is enabled");
             }
+
+            if (selectedAmount >= transferAmount + dynamicFee) break;
         }
 
-        const fee = Math.ceil((10 + selectedUtxos.length * 68 + 2 * 31) * feePerB);
-        const change = selectedAmount - sendAmount - fee;
+        const computedFee = feePerB ? Math.ceil(estimateTxSize(selectedUtxos.length, 2) * feePerB) : fee;
+        const finalAmount = subtractFee ? requestedAmount - computedFee : requestedAmount;
 
-        if (selectedAmount < sendAmount + fee) {
+        if (finalAmount <= 0) {
+            throw new Error("Amount must be greater than fee when subtractFee is enabled");
+        }
+
+        if (selectedAmount < finalAmount + computedFee) {
             throw new Error("Insufficient BTC balance for amount + fee");
         }
 
-        const outputs = [{ address: recipientAddress, amount: sendAmount }];
+        const change = selectedAmount - finalAmount - computedFee;
+        const outputs = [{ address: recipientAddress, amount: finalAmount }];
 
         if (change > DUST_LIMIT) {
             outputs.push({ address: senderAddress, amount: change });
@@ -154,7 +207,7 @@ export class BtcWallet extends BaseWallet {
         const rawTx = await this.wallet.signTransaction({
             privateKey,
             data: {
-                inputs: selectedUtxos.map((utxo: any) => ({
+                inputs: selectedUtxos.map((utxo: BtcUtxo) => ({
                     txId: utxo.txid,
                     vOut: utxo.vout,
                     amount: utxo.value,
@@ -162,7 +215,7 @@ export class BtcWallet extends BaseWallet {
                 })),
                 outputs,
                 address: senderAddress,
-                feePerB,
+                feePerB: feePerB ?? 1,
             },
         });
 
@@ -181,10 +234,11 @@ export class BtcWallet extends BaseWallet {
             rawTx,
             from: senderAddress,
             to: recipientAddress,
-            amount: formatBTC(sendAmount.toString()),
-            _rawAmount: sendAmount,
-            fee: formatBTC(fee.toString()),
-            _rawFee: fee,
+            amount: formatBTC(finalAmount.toString()),
+            _rawAmount: finalAmount,
+            fee: formatBTC(computedFee.toString()),
+            _rawFee: computedFee,
+            subtractFee,
         });
     }
 

@@ -243,7 +243,12 @@ const transfer = await btcWallet.transfer({
   privateKey: "L...",
   recipientAddress: "bc1...",
   amount: 0.0001,
-  feePerB: 5,
+  fee: 10000, // satoshi (optional, default 10000)
+  subtractFee: false, // optional
+});
+
+const tx = await btcWallet.getTransaction({
+  hash: "<btc_tx_hash>",
 });
 ```
 
