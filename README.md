@@ -214,6 +214,41 @@ If the transaction contains `data`, `memo` will be automatically decoded (UTF-8)
 
 ---
 
+## ₿ Bitcoin (BTC) Usage
+
+BTC wallet now supports:
+- Generate wallet
+- Get balance
+- Transfer BTC
+- Get transactions by address
+
+```ts
+const btcClient = new CryptoClientSdk({
+  network: "BTC",
+  // optional: cluster: "testnet"
+});
+
+const btcWallet = btcClient.getWallet();
+
+const balance = await btcWallet.getBalance({
+  address: "bc1...",
+});
+
+const txs = await btcWallet.getTransactions({
+  address: "bc1...",
+  limit: 10,
+});
+
+const transfer = await btcWallet.transfer({
+  privateKey: "L...",
+  recipientAddress: "bc1...",
+  amount: 0.0001,
+  feePerB: 5,
+});
+```
+
+---
+
 ## 🧩 Architecture
 
 - `BaseWallet` → Common wallet interface
