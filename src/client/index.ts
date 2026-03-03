@@ -23,6 +23,7 @@ export class CryptoClientSdk<T extends WalletTypes> {
         const WalletClass = WalletRegistry[this.network];
 
         const config: DexConfig = {
+            network: this.network,
             chainId: this.chainId,
             rpcUrl: this.rpcUrl,
         };
