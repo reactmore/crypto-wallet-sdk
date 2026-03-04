@@ -54,14 +54,29 @@ export class BtcWallet extends BaseWallet {
     }
 
 
-    async generateWallet({ mnemonic, derivationPath }: GenerateWalletPayload): Promise<IResponse> {
-        const hdPath = derivationPath || "m/44'/0'/0'/0/0";
+    async generateWallet({
+        mnemonic,
+        derivationPath,
+        addressType = "segwit_native",
+    }: GenerateWalletPayload & {
+        addressType?: "Legacy" | "segwit_native" | "segwit_nested" | "segwit_taproot";
+    }): Promise<IResponse> {
+        const coinType = this.config.cluster === "testnet" ? 1 : 0;
+
+        const hdPath =
+            derivationPath || `m/44'/${coinType}'/0'/0/0`;
+
         const getMnemonic = mnemonic ?? (await this.generateMnemonic(12));
 
-        const derivePrivateKey = await this.wallet.getDerivedPrivateKey({ mnemonic: getMnemonic, hdPath });
-        const { address, publicKey } = await this.wallet.getNewAddress({ privateKey: derivePrivateKey });
+        const derivePrivateKey = await this.wallet.getDerivedPrivateKey({
+            mnemonic: getMnemonic,
+            hdPath,
+        });
 
-        console.log(this.config.cluster);
+        const { address, publicKey } = await this.wallet.getNewAddress({
+            privateKey: derivePrivateKey,
+            addressType,
+        });
 
         return successResponse({ address, publicKey, privateKey: derivePrivateKey, mnemonic: getMnemonic });
     }
@@ -69,12 +84,9 @@ export class BtcWallet extends BaseWallet {
     async getBalance({ address }: BalancePayload): Promise<IResponse> {
 
         const testnet = this.config.cluster === 'testnet';
-
         const endpoints = _apiFallbacks.fetchUTXOs(testnet, address, 0);
-
-        console.log(endpoints);
-
         const utxos = await fallback(endpoints);
+        console.log(utxos, { depth: null });
 
         const bn = utxos
             .reduce((sum, utxo) => sum.plus(utxo.amount), new BigNumber(0))

@@ -69,23 +69,16 @@ export const retryNTimes = async <T>(
   fnCall: () => Promise<T>,
   retries: number
 ) => {
-  let returnError;
+  let lastError;
+
   for (let i = 0; i < retries; i++) {
     try {
       return await fnCall();
     } catch (error) {
-      if (String(error).match(/timeout of .* exceeded/)) {
-        returnError = error;
-      } else {
-        const errorMessage = extractError(error);
-        if (errorMessage) {
-          // tslint:disable-next-line: no-object-mutation
-          error.message += ` (${errorMessage})`;
-        }
-        throw error;
-      }
+      lastError = error;
+      await sleep(500);
     }
-    await sleep(500);
   }
-  throw returnError;
+
+  throw lastError;
 };
