@@ -6,16 +6,11 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 describe('Ethereum tests', () => {
   const client = new CryptoClientSdk({
-    network: "BTC"
+    network: "BTC",
+    cluster: 'testnet'
   });
 
   const wallet = client.getWallet();
-
-  // it('generateMnemonic from Base', async () => {
-  //   const mnemonic = await wallet.generateMnemonic(12);
-
-  //   expect(typeof mnemonic).toBe('string');
-  // });
 
   it('generateWallet', async () => {
     const data = await wallet.generateWallet({
@@ -23,18 +18,21 @@ describe('Ethereum tests', () => {
       derivationPath: "m/44'/0'/0'/0/0",
     });
 
+    console.log(data);
+
     expect(typeof data).toBe('object');
   });
 
-  // it('getBalance', async () => {
-  //   const data = await wallet.getBalance({
-  //     address: "0x45BeEcA6ebEA6f99De93e39572ec62449315aa80",
-  //   });
+  it('getBalance', async () => {
+    const data = await wallet.getBalance({
+      address: "n3SX29mBR6R3tQjULzXKhPK6aUtZZTQfQp",
+    });
 
-  //   expect(typeof data).toBe('object');
-  //   expect(data).toHaveProperty('balance');
-  //   expect(typeof data.balance).toBe('number');
-  // });
+    console.log(data);
+
+    expect(typeof data).toBe('object');
+
+  });
 
   // it('getBalance ERC20 token balance', async () => {
   //   const data = await ethWrapper.getBalance({

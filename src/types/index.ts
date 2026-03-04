@@ -11,6 +11,15 @@ export interface ChainConfig {
 
 export type DexNetwork = "EVM" | "SOL" | "BTC" | "DOGE" | "SUI";
 
+export type Network =
+  | 'ethereum'
+  | 'solana'
+  | 'tron'
+  | 'waves'
+  | 'bitcoin'
+  | 'bitcoin-testnet'
+  | 'ton';
+
 export interface DexNetworkConfigs {
     [network: string]: {
         [key: string]: ChainConfig; // chainId | cluster | whatever
