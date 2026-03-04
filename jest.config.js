@@ -1,7 +1,7 @@
 const config = {
     testTimeout: 100000,
     moduleNameMapper: {
-        '^axios$': 'axios/dist/axios.js',
+        '^axios$': 'axios/dist/node/axios.cjs',
         '^../../common/helpers/solanaHelper$': '<rootDir>/test/__mocks__/solanaHelper.ts',
 
     },

@@ -33,3 +33,9 @@ try {
 } catch (e) {
   console.warn('Could not patch @noble/hashes');
 }
+
+// Force axios to use Node HTTP adapter in Jest (jsdom defines XMLHttpRequest by default).
+if (typeof global.XMLHttpRequest !== 'undefined') {
+  // @ts-ignore
+  global.XMLHttpRequest = undefined;
+}
